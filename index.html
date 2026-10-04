@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart College Complaint Portal | BGMIT, Mudhol</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  >
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"
+  >
+  <link rel="stylesheet" href="assets/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <script src="assets/js/app.js" defer></script>
+</head>
+
+<body>
+  <!-- Top navigation -->
+  <header class="site-header">
+    <a class="brand" href="#home" data-page="home">
+      <span class="brand-icon"><i class="fa-solid fa-building-columns"></i></span>
+      <span>
+        <strong>Smart College Complaint Portal</strong>
+        <small>Report &nbsp;•&nbsp; Track &nbsp;•&nbsp; Resolve</small>
+      </span>
+    </a>
+
+    <button class="menu-button" id="menuButton" aria-label="Open menu">
+      <i class="fa-solid fa-bars"></i>
+    </button>
+
+    <nav class="main-nav" id="mainNav">
+      <a class="active" href="#home" data-page="home">Home</a>
+      <a href="#about" data-scroll="about">About College</a>
+      <a href="#complaint" data-page="complaint">Complaints</a>
+      <button class="nav-login" data-page="login">Login</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- HOME PAGE -->
+    <section class="page active-page" id="homePage">
+      <section class="hero">
+        <div class="hero-overlay"></div>
+
+        <div class="hero-content">
+          <p class="eyebrow">BGMIT, MUDHOL <span></span></p>
+          <h1>Smart College<br>Complaint Portal</h1>
+          <p class="hero-text">
+            A simple digital platform for students to report college-related
+            problems and track their complaints until they are resolved.
+          </p>
+
+          <div class="hero-buttons">
+            <button class="button button-light" data-page="login">
+              <i class="fa-regular fa-user"></i>
+              Student Login
+              <i class="fa-solid fa-arrow-right"></i>
+            </button>
+
+            <button class="button button-primary" data-page="login">
+              <i class="fa-solid fa-shield-halved"></i>
+              Admin / Department Login
+              <i class="fa-solid fa-arrow-right"></i>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="section management-section">
+        <div class="section-heading">
+          <p class="small-title">STUDENT SERVICES</p>
+          <h2>Our Complaint Management</h2>
+          <p>Report issues quickly and receive clear updates at every step.</p>
+        </div>
+
+        <div class="management-grid">
+          <article class="management-card">
+            <div class="round-icon blue-icon">
+              <i class="fa-regular fa-pen-to-square"></i>
+            </div>
+            <div>
+              <h3>Submit Complaint</h3>
+              <p>
+                Students can submit a complaint with a title, category,
+                location, priority and detailed description.
+              </p>
+            </div>
+          </article>
+
+          <article class="management-card">
+            <div class="round-icon green-icon">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </div>
+            <div>
+              <h3>Track Complaint</h3>
+              <p>
+                Students can check the current status of their complaint
+                using their private complaint ID.
+              </p>
+            </div>
+          </article>
+
+          <article class="management-card">
+            <div class="round-icon purple-icon">
+              <i class="fa-solid fa-gear"></i>
+            </div>
+            <div>
+              <h3>Quick Resolution</h3>
+              <p>
+                Admin and departments assign, update and resolve complaints
+                until campus problems are fixed.
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="report-section" id="about">
+        <div class="report-intro">
+          <div class="report-icon">
+            <i class="fa-solid fa-bullhorn"></i>
+          </div>
+
+          <div>
+            <h2>What Can You Report?</h2>
+            <p>
+              Students can report damaged classroom equipment, electrical
+              issues, water leakage, cleanliness, internet problems,
+              laboratory equipment issues, infrastructure problems and other
+              campus-related concerns.
+            </p>
+            <p>
+              Each complaint includes a clear description and location so the
+              concerned department can take appropriate action.
+            </p>
+          </div>
+        </div>
+
+        <div class="category-list">
+          <div><i class="fa-solid fa-desktop"></i> Classroom Equipment</div>
+          <div><i class="fa-solid fa-wifi"></i> Internet Problems</div>
+          <div><i class="fa-solid fa-bolt"></i> Electrical Issues</div>
+          <div><i class="fa-solid fa-flask"></i> Laboratory Equipment</div>
+          <div><i class="fa-solid fa-droplet"></i> Water Leakage</div>
+          <div><i class="fa-solid fa-building"></i> Infrastructure</div>
+          <div><i class="fa-solid fa-broom-ball"></i> Cleanliness</div>
+          <div><i class="fa-solid fa-ellipsis"></i> Other Issues</div>
+        </div>
+      </section>
+
+      <section class="section callout">
+        <div>
+          <p class="small-title">YOUR VOICE MATTERS</p>
+          <h2>Help us build a better campus.</h2>
+          <p>Submit a complaint in less than two minutes.</p>
+        </div>
+        <button class="button button-primary" data-page="complaint">
+          Submit New Complaint <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </section>
+    </section>
+
+    <!-- LOGIN PAGE -->
+    <section class="page auth-page" id="loginPage">
+      <div class="auth-card">
+        <button class="back-button" data-page="home">
+          <i class="fa-solid fa-arrow-left"></i> Back to Home
+        </button>
+
+        <div class="auth-logo">
+          <i class="fa-solid fa-building-columns"></i>
+        </div>
+
+        <h1>Welcome Back</h1>
+        <p>Log in to report, track and manage campus complaints.</p>
+
+        <div class="login-tabs">
+          <button class="login-tab active" data-role="student">Student</button>
+          <button class="login-tab" data-role="admin">Admin</button>
+        </div>
+
+        <form id="loginForm">
+          <label for="loginEmail">Email Address</label>
+          <input id="loginEmail" type="email" placeholder="student@example.com" required>
+
+          <label for="loginPassword">Password</label>
+          <input id="loginPassword" type="password" placeholder="Enter password" required>
+
+          <button class="button button-primary full-button" type="submit">
+            Login <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </form>
+
+        <p class="form-note">
+          Demo website: enter any email and password to continue.
+        </p>
+      </div>
+    </section>
+
+    <!-- STUDENT DASHBOARD -->
+    <section class="page dashboard-page" id="dashboardPage">
+      <aside class="sidebar">
+        <div class="sidebar-title">Student Panel</div>
+
+        <button class="side-link active" data-dashboard="overview">
+          <i class="fa-solid fa-house"></i> Dashboard
+        </button>
+        <button class="side-link" data-page="complaint">
+          <i class="fa-solid fa-circle-plus"></i> New Complaint
+        </button>
+        <button class="side-link" data-dashboard="complaints">
+          <i class="fa-solid fa-list-check"></i> My Complaints
+        </button>
+        <button class="side-link" data-dashboard="notifications">
+          <i class="fa-regular fa-bell"></i> Notifications
+          <span class="notification-count">2</span>
+        </button>
+        <button class="side-link" data-page="track">
+          <i class="fa-solid fa-magnifying-glass"></i> Search / Track
+        </button>
+        <button class="side-link" data-dashboard="feedback">
+          <i class="fa-regular fa-star"></i> Feedback
+        </button>
+        <button class="side-link logout-button" data-page="home">
+          <i class="fa-solid fa-right-from-bracket"></i> Logout
+        </button>
+      </aside>
+
+      <section class="dashboard-content">
+        <div class="dashboard-top">
+          <div>
+            <p class="small-title">STUDENT DASHBOARD</p>
+            <h1>Welcome, <span id="studentName">Student</span>!</h1>
+            <p>Together for a better campus.</p>
+          </div>
+
+          <button class="button button-primary" data-page="complaint">
+            <i class="fa-solid fa-plus"></i> Submit New Complaint
+          </button>
+        </div>
+
+        <div class="stat-grid">
+          <article class="stat-card">
+            <div class="round-icon blue-icon"><i class="fa-solid fa-file-lines"></i></div>
+            <p>Total Complaints</p>
+            <strong id="totalCount">5</strong>
+          </article>
+
+          <article class="stat-card">
+            <div class="round-icon yellow-icon"><i class="fa-regular fa-clock"></i></div>
+            <p>In Progress</p>
+            <strong id="progressCount">2</strong>
+          </article>
+
+          <article class="stat-card">
+            <div class="round-icon green-icon"><i class="fa-solid fa-circle-check"></i></div>
+            <p>Resolved</p>
+            <strong id="resolvedCount">2</strong>
+          </article>
+
+          <article class="stat-card">
+            <div class="round-icon red-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <p>Overdue</p>
+            <strong id="overdueCount">1</strong>
+          </article>
+        </div>
+
+        <section class="recent-card">
+          <div class="card-heading">
+            <h2>Recent Complaints</h2>
+            <button class="text-button" data-dashboard="complaints">
+              View All <i class="fa-solid fa-arrow-right"></i>
+            </button>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Category</th>
+                  <th>Location</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="complaintTable">
+                <tr>
+                  <td>CMP001</td>
+                  <td>Electrical</td>
+                  <td>Block A - Room 203</td>
+                  <td><span class="status progress">In Progress</span></td>
+                  <td>10-10-2026</td>
+                </tr>
+                <tr>
+                  <td>CMP002</td>
+                  <td>Water Leakage</td>
+                  <td>Block B - Washroom</td>
+                  <td><span class="status assigned">Assigned</span></td>
+                  <td>08-10-2026</td>
+                </tr>
+                <tr>
+                  <td>CMP003</td>
+                  <td>Classroom</td>
+                  <td>Block C - Room 102</td>
+                  <td><span class="status resolved">Resolved</span></td>
+                  <td>06-10-2026</td>
+                </tr>
+                <tr>
+                  <td>CMP004</td>
+                  <td>Cleaning</td>
+                  <td>Library</td>
+                  <td><span class="status overdue">Overdue</span></td>
+                  <td>01-10-2026</td>
+                </tr>
+                <tr>
+                  <td>CMP005</td>
+                  <td>Internet</td>
+                  <td>Computer Lab</td>
+                  <td><span class="status resolved">Resolved</span></td>
+                  <td>28-09-2026</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <div class="feature-grid">
+          <article><i class="fa-regular fa-clock"></i><h3>10-Day Escalation</h3><p>Unresolved complaints are marked overdue.</p></article>
+          <article><i class="fa-solid fa-location-dot"></i><h3>Location Details</h3><p>Add the exact block, room or lab location.</p></article>
+          <article><i class="fa-solid fa-camera"></i><h3>Before & After Photo</h3><p>Upload issue and resolution photos.</p></article>
+          <article><i class="fa-regular fa-bell"></i><h3>Notifications</h3><p>Receive updates when status changes.</p></article>
+        </div>
+      </section>
+    </section>
+
+    <!-- NEW COMPLAINT PAGE -->
+    <section class="page form-page" id="complaintPage">
+      <div class="form-container">
+        <button class="back-button" data-page="dashboard">
+          <i class="fa-solid fa-arrow-left"></i> Back
+        </button>
+
+        <div class="form-heading">
+          <p class="small-title">REPORT AN ISSUE</p>
+          <h1>Submit New Complaint</h1>
+          <p>Give clear details so the correct department can help quickly.</p>
+        </div>
+
+        <form class="complaint-form" id="complaintForm">
+          <div class="input-grid">
+            <div>
+              <label for="title">Complaint Title</label>
+              <input id="title" type="text" placeholder="Example: Fan is not working" required>
+            </div>
+
+            <div>
+              <label for="category">Category</label>
+              <select id="category" required>
+                <option value="">Select category</option>
+                <option>Electrical</option>
+                <option>Water Leakage</option>
+                <option>Classroom Equipment</option>
+                <option>Internet Problems</option>
+                <option>Cleanliness</option>
+                <option>Infrastructure</option>
+                <option>Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="location">Exact Location</label>
+              <input id="location" type="text" placeholder="Example: Block A - Room 203" required>
+            </div>
+
+            <div>
+              <label for="priority">Priority</label>
+              <select id="priority" required>
+                <option>Normal</option>
+                <option>Low</option>
+                <option>High</option>
+                <option>Emergency</option>
+              </select>
+            </div>
+          </div>
+
+          <label for="description">Description</label>
+          <textarea id="description" rows="6" placeholder="Explain the problem clearly..." required></textarea>
+
+          <label for="photo">Upload Photo (optional)</label>
+          <input id="photo" type="file" accept="image/*">
+
+          <button class="button button-primary full-button" type="submit">
+            Submit Complaint <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- TRACK PAGE -->
+    <section class="page track-page" id="trackPage">
+      <div class="track-box">
+        <button class="back-button" data-page="home">
+          <i class="fa-solid fa-arrow-left"></i> Back to Home
+        </button>
+
+        <div class="auth-logo"><i class="fa-solid fa-magnifying-glass"></i></div>
+        <h1>Track Your Complaint</h1>
+        <p>Enter your complaint ID to view its current status.</p>
+
+        <form id="trackForm" class="track-form">
+          <input id="trackId" type="text" placeholder="Example: CMP001" required>
+          <button class="button button-primary" type="submit">Track Now</button>
+        </form>
+
+        <div class="track-result hidden" id="trackResult">
+          <h3>Complaint CMP001</h3>
+          <p><strong>Status:</strong> <span class="status progress">In Progress</span></p>
+
+          <div class="timeline">
+            <div class="timeline-item complete"><span>1</span><p>Submitted</p></div>
+            <div class="timeline-item complete"><span>2</span><p>Assigned</p></div>
+            <div class="timeline-item active"><span>3</span><p>In Progress</p></div>
+            <div class="timeline-item"><span>4</span><p>Resolved</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2026 Smart College Complaint Portal &nbsp; | &nbsp; BGMIT, Mudhol</p>
+    <p>Together for a Better Campus</p>
+  </footer>
+</body>
+</html>
