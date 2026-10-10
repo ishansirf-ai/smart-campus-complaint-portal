@@ -4,7 +4,7 @@ const TOKEN_KEY = "portal_token";
 const USER_KEY = "portal_user";
 
 let currentUser = getSavedUser();
-let studentChart = null;
+let loginRole = ({"/admin-login":"admin","/department-login":"department","/student-login":"student"})[window.location.pathname] || "student";
 let adminChart = null;
 let departments = [
   "Maintenance Department",
@@ -99,6 +99,10 @@ function isStaff() {
   );
 }
 
+function loginEndpoint() {
+  return loginRole === "admin" ? "/auth/admin/login" : loginRole === "department" ? "/auth/department/login" : "/auth/student/login";
+}
+
 // Save successful login in browser.
 function saveSession(data) {
   localStorage.setItem(TOKEN_KEY, data.token);
@@ -130,13 +134,17 @@ function updateHeader() {
   if (!loginButton) return;
 
   if (currentUser) {
-    loginButton.textContent = isStaff()
+    loginButton.textContent = currentUser.role === "admin"
       ? "Admin Dashboard"
-      : "My Dashboard";
+      : currentUser.role === "department"
+        ? "Department Dashboard"
+        : "My Dashboard";
 
-    loginButton.dataset.page = isStaff()
+    loginButton.dataset.page = currentUser.role === "admin"
       ? "admin"
-      : "dashboard";
+      : currentUser.role === "department"
+        ? "department"
+        : "dashboard";
   } else {
     loginButton.textContent = "Login";
     loginButton.dataset.page = "login";
@@ -156,8 +164,13 @@ function showPage(pageName, updateHash = true) {
     pageName = "login";
   }
 
-  if (pageName === "admin" && !isStaff()) {
+  if (pageName === "admin" && (!currentUser || currentUser.role !== "admin")) {
     showToast("Admin or Department login is required.", "error");
+    pageName = "login";
+  }
+
+  if (pageName === "department" && (!currentUser || currentUser.role !== "department")) {
+    showToast("Department staff login is required.", "error");
     pageName = "login";
   }
 
@@ -201,6 +214,10 @@ function showPage(pageName, updateHash = true) {
     loadAdminDashboard();
   }
 
+  if (pageName === "department") {
+    loadDepartmentDashboard();
+  }
+
   if (pageName === "complaint") {
     loadCategories();
   }
@@ -238,7 +255,9 @@ function createExtraPages() {
             <input id="registerUsn" required placeholder="Example: 4BG21CS001">
 
             <label for="registerDepartment">Branch / Department</label>
-            <input id="registerDepartment" required placeholder="Example: CSE">
+            <select id="registerDepartment" required>
+              <option value="">Select department</option><option>CSE</option><option>AIML</option><option>CIVIL</option><option>EC</option><option>MECHANICAL</option>
+            </select>
 
             <label for="registerSemester">Semester</label>
             <select id="registerSemester" required>
@@ -362,18 +381,65 @@ function createExtraPages() {
     );
   }
 
+  if (!$("#departmentPage")) {
+    main.insertAdjacentHTML("beforeend", `
+      <section class="page admin-page" id="departmentPage">
+        <div class="admin-shell">
+          <button class="back-button" data-page="home"><i class="fa-solid fa-arrow-left"></i> Home</button>
+          <div class="admin-heading"><div><p class="small-title">DEPARTMENT STAFF PORTAL</p><h1>Welcome, <span id="departmentName">Department</span></h1><p>Manage complaints assigned to your department.</p></div></div>
+          <div class="admin-stat-grid" id="departmentStats"></div>
+          <section class="admin-panel"><h2>Assigned Complaints</h2><div class="table-wrap"><table><thead><tr><th>Ticket</th><th>Title</th><th>Priority</th><th>Status</th><th>Due date</th><th>Action</th></tr></thead><tbody id="departmentComplaintRows"></tbody></table></div></section>
+        </div>
+      </section>`);
+  }
+
   const loginCard = $(".auth-card");
 
   if (loginCard && !$("#openRegisterButton")) {
     loginCard.insertAdjacentHTML(
       "beforeend",
       `
-      <button id="openRegisterButton" class="text-button" data-page="register">
-        New student? Create your account
-      </button>
+      <div class="auth-actions" aria-label="Account actions">
+        <button id="openRegisterButton" class="auth-action auth-action-primary" data-page="register">
+          <i class="fa-solid fa-user-plus"></i>
+          <span>New student? <strong>Create an account</strong></span>
+        </button>
+        <button id="forgotPasswordButton" class="auth-action auth-action-secondary" type="button">
+          <i class="fa-solid fa-key"></i>
+          <span>Forgot your password?</span>
+        </button>
+      </div>
       `
     );
   }
+}
+
+function openPasswordReset() {
+  $("#passwordResetOverlay")?.remove();
+  document.body.insertAdjacentHTML("beforeend", `<div class="notification-overlay" id="passwordResetOverlay"><div class="notification-drawer"><div class="drawer-header"><h2>Reset password</h2><button class="icon-button" data-close-password-reset><i class="fa-solid fa-xmark"></i></button></div><p>We will email a secure 4-digit OTP to your registered address.</p><form id="passwordResetForm"><label>Email</label><input id="resetEmail" type="email" required><div id="resetOtpFields" class="hidden"><label>4-digit OTP</label><input id="resetOtp" inputmode="numeric" maxlength="4"><label>New password</label><input id="resetNewPassword" type="password" minlength="6"><label>Confirm password</label><input id="resetConfirmPassword" type="password" minlength="6"></div><button class="button button-primary full-button" type="submit" id="resetSubmit">Send OTP</button></form></div></div>`);
+  addPasswordToggles();
+}
+
+function addPasswordToggles(root = document) {
+  root.querySelectorAll('input[type="password"]').forEach((input) => {
+    if (input.dataset.eyeReady) return;
+    input.dataset.eyeReady = "true";
+    input.insertAdjacentHTML("afterend", `<button type="button" class="password-toggle" data-password-target="${input.id}" aria-label="Show password"><i class="fa-regular fa-eye"></i></button>`);
+  });
+}
+
+async function loadDepartmentDashboard() {
+  if (!currentUser || currentUser.role !== "department") return;
+  try {
+    const data = await api("/department/dashboard");
+    const stats = data.summary || {};
+    $("#departmentName").textContent = `${data.department} Department`;
+    $("#departmentStats").innerHTML = [
+      ["Assigned Complaints", stats.total], ["Pending", stats.pending],
+      ["In Progress", stats.inProgress], ["Resolved", stats.resolved], ["Overdue", stats.overdue]
+    ].map(([label, value]) => `<article class="stat-card"><p>${label}</p><strong>${Number(value || 0)}</strong></article>`).join("");
+    $("#departmentComplaintRows").innerHTML = (data.recentComplaints || []).map((item) => `<tr><td>${escapeHtml(item.ticketId)}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.priority)}</td><td><span class="status ${statusClass(item.status)}">${escapeHtml(item.status)}</span></td><td>${formatDate(item.dueDate)}</td><td><button class="text-button" data-department-complaint="${item._id}">View</button></td></tr>`).join("") || `<tr><td colspan="6" class="empty-state">No complaints assigned to this department.</td></tr>`;
+  } catch (error) { showToast(error.message, "error"); }
 }
 
 // Load categories from backend.
@@ -440,7 +506,6 @@ async function loadStudentDashboard() {
         notificationData.unreadCount > 0 ? "flex" : "none";
     }
 
-    drawStudentChart(dashboardData.byCategory);
   } catch (error) {
     showToast(error.message, "error");
   }
@@ -509,61 +574,6 @@ function renderStudentComplaints(complaints) {
       `;
     })
     .join("");
-}
-
-// Student category chart.
-function drawStudentChart(items) {
-  let card = $("#studentChartCard");
-
-  if (!card) {
-    $(".dashboard-content")?.insertAdjacentHTML(
-      "beforeend",
-      `
-      <section class="chart-card" id="studentChartCard">
-        <h3>My Complaints by Category</h3>
-        <canvas id="studentCategoryChart"></canvas>
-      </section>
-      `
-    );
-
-    card = $("#studentChartCard");
-  }
-
-  if (!window.Chart) return;
-
-  if (studentChart) {
-    studentChart.destroy();
-  }
-
-  studentChart = new Chart(
-    $("#studentCategoryChart"),
-    {
-      type: "doughnut",
-      data: {
-        labels: items.map((item) => item.label),
-        datasets: [
-          {
-            data: items.map((item) => item.value),
-            backgroundColor: [
-              "#1976dd",
-              "#1ba467",
-              "#f2a600",
-              "#7659d9",
-              "#e94d59"
-            ]
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {
-            position: "bottom"
-          }
-        }
-      }
-    }
-  );
 }
 
 // Submit real complaint to MongoDB.
@@ -1054,7 +1064,7 @@ document.addEventListener("submit", async (event) => {
 
   try {
     if (event.target.id === "loginForm") {
-      const data = await api("/auth/login", {
+      const data = await api(loginEndpoint(), {
         method: "POST",
         body: {
           email: $("#loginEmail").value.trim(),
@@ -1068,7 +1078,24 @@ document.addEventListener("submit", async (event) => {
 
       showToast(`Welcome, ${currentUser.fullName}!`);
 
-      showPage(isStaff() ? "admin" : "dashboard");
+      showPage(currentUser.role === "admin" ? "admin" : currentUser.role === "department" ? "department" : "dashboard");
+    }
+
+    if (event.target.id === "passwordResetForm") {
+      const form = event.target;
+      const submit = $("#resetSubmit");
+      if (!form.dataset.otpSent) {
+        await api("/auth/password-reset/request", { method: "POST", body: { email: $("#resetEmail").value.trim(), portal: loginRole } });
+        form.dataset.otpSent = "true";
+        $("#resetOtpFields").classList.remove("hidden");
+        submit.textContent = "Verify OTP and reset password";
+        showToast("If the account exists, the OTP has been sent.");
+      } else {
+        const verified = await api("/auth/password-reset/verify", { method: "POST", body: { email: $("#resetEmail").value.trim(), portal: loginRole, otp: $("#resetOtp").value.trim() } });
+        await api("/auth/password-reset/reset", { method: "POST", body: { resetToken: verified.resetToken, newPassword: $("#resetNewPassword").value, confirmPassword: $("#resetConfirmPassword").value } });
+        $("#passwordResetOverlay")?.remove();
+        showToast("Password reset successfully. Please log in.");
+      }
     }
 
     if (event.target.id === "registerForm") {
@@ -1149,10 +1176,39 @@ document.addEventListener("submit", async (event) => {
 
 // Handle buttons and navigation.
 document.addEventListener("click", async (event) => {
+  const toggle = event.target.closest("[data-password-target]");
+  if (toggle) {
+    const input = document.getElementById(toggle.dataset.passwordTarget);
+    if (input) {
+      input.type = input.type === "password" ? "text" : "password";
+      toggle.setAttribute("aria-label", input.type === "password" ? "Show password" : "Hide password");
+      const icon = toggle.querySelector("i");
+      if (icon) icon.className = input.type === "password" ? "fa-regular fa-eye" : "fa-regular fa-eye-slash";
+    }
+  }
+  const loginTab = event.target.closest(".login-tab");
+  if (loginTab) {
+    loginRole = loginTab.dataset.role || "student";
+    document.querySelectorAll(".login-tab").forEach((tab) => tab.classList.toggle("active", tab === loginTab));
+    return;
+  }
+  if (event.target.closest("#forgotPasswordButton")) {
+    openPasswordReset();
+    return;
+  }
+  if (event.target.closest("[data-close-password-reset]")) {
+    $("#passwordResetOverlay")?.remove();
+    return;
+  }
   const pageButton = event.target.closest("[data-page]");
 
   if (pageButton) {
     event.preventDefault();
+
+    if (pageButton.dataset.loginRole) {
+      loginRole = pageButton.dataset.loginRole;
+      document.querySelectorAll(".login-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.role === loginRole));
+    }
 
     if (pageButton.classList.contains("logout-button")) {
       logout();
@@ -1365,14 +1421,23 @@ async function validateSavedSession() {
 // Start website.
 async function startPortal() {
   createExtraPages();
+  addPasswordToggles();
+
+  const loginHeading = $("#loginPage h1");
+  const loginDescription = $("#loginPage .auth-card > p");
+  if (loginHeading && window.location.pathname !== "/") {
+    const labels = { student: "Student Complaint Portal", admin: "Administrator Portal", department: "Department Staff Portal" };
+    loginHeading.textContent = labels[loginRole] || labels.student;
+    if (loginDescription) loginDescription.textContent = `Sign in to the ${labels[loginRole] || labels.student}.`;
+    document.querySelectorAll(".login-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.role === loginRole));
+  }
 
   updateHeader();
 
   await loadCategories();
   await validateSavedSession();
 
-  const startingPage =
-    window.location.hash.replace("#", "") || "home";
+  const startingPage = window.location.hash.replace("#", "") || (window.location.pathname !== "/" ? "login" : "home");
 
   showPage(startingPage, false);
 }

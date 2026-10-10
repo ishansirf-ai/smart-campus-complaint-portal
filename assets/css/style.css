@@ -514,9 +514,55 @@ a {
   background: #edf5fd;
   border-radius: 9px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   margin: 25px 0 20px;
   padding: 4px;
+}
+
+.auth-actions {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 18px;
+}
+
+.auth-action {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+  justify-content: center;
+  padding: 11px 14px;
+  transition: background .2s ease, border-color .2s ease, transform .2s ease;
+}
+
+.auth-action:hover {
+  transform: translateY(-1px);
+}
+
+.auth-action-primary {
+  background: #edf6ff;
+  border-color: #cfe5fa;
+  color: var(--blue);
+}
+
+.auth-action-primary strong {
+  color: var(--navy);
+}
+
+.auth-action-secondary {
+  color: #55718a;
+}
+
+.auth-action-secondary:hover {
+  background: #f4f8fb;
+  border-color: var(--line);
+  color: var(--blue);
 }
 
 .login-tab {
@@ -1451,3 +1497,4 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+.password-toggle{background:transparent;border:0;color:#215a8e;cursor:pointer;font-size:1rem;padding:.35rem;float:right;margin-top:-2.35rem;margin-right:.5rem;position:relative;z-index:2}

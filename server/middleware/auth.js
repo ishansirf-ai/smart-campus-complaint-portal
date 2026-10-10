@@ -1,12 +1,12 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// Checks if the user sent a valid JWT login token.
+// Checks the session token and loads the current database user. This protects
+// every role-specific API from forged frontend values.
 async function protect(req, res, next) {
   try {
     const authorization = req.headers.authorization || "";
 
-    // Token format must be: Bearer TOKEN_HERE
     if (!authorization.startsWith("Bearer ")) {
       return res.status(401).json({
         success: false,
@@ -14,13 +14,16 @@ async function protect(req, res, next) {
       });
     }
 
-    // Remove "Bearer " and keep only the token.
-    const token = authorization.split(" ")[1];
-
-    // Read user ID stored inside token.
+    const token = authorization.slice(7).trim();
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Get current user from MongoDB.
+    if (decoded.purpose && decoded.purpose !== "session") {
+      return res.status(401).json({
+        success: false,
+        message: "This token cannot access the portal."
+      });
+    }
+
     req.user = await User.findById(decoded.id);
 
     if (!req.user || !req.user.isActive) {
@@ -39,10 +42,9 @@ async function protect(req, res, next) {
   }
 }
 
-// Allows only selected roles to use a route.
-function allowRoles(...roles) {
+function authorize(...roles) {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: "You do not have permission for this action."
@@ -53,7 +55,16 @@ function allowRoles(...roles) {
   };
 }
 
+const adminOnly = authorize("admin");
+const departmentOnly = authorize("department");
+const studentOnly = authorize("student");
+
 module.exports = {
   protect,
-  allowRoles
+  authorize,
+  // Existing routes used this name. It is kept as an alias.
+  allowRoles: authorize,
+  adminOnly,
+  departmentOnly,
+  studentOnly
 };

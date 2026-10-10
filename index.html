@@ -24,7 +24,7 @@
   <!-- Top navigation -->
   <header class="site-header">
     <a class="brand" href="#home" data-page="home">
-      <span class="brand-icon"><i class="fa-solid fa-building-columns"></i></span>
+      <span class="brand-icon" aria-label="BGMIT logo">BGMIT</span>
       <span>
         <strong>Smart College Complaint Portal</strong>
         <small>Report &nbsp;•&nbsp; Track &nbsp;•&nbsp; Resolve</small>
@@ -60,13 +60,13 @@
           <div class="hero-buttons">
             <button class="button button-light" data-page="login">
               <i class="fa-regular fa-user"></i>
-              Student Login
+              Login
               <i class="fa-solid fa-arrow-right"></i>
             </button>
 
-            <button class="button button-primary" data-page="login">
-              <i class="fa-solid fa-shield-halved"></i>
-              Admin / Department Login
+            <button class="button button-primary" data-page="register">
+              <i class="fa-solid fa-user-plus"></i>
+              Register
               <i class="fa-solid fa-arrow-right"></i>
             </button>
           </div>
@@ -184,6 +184,7 @@
         <div class="login-tabs">
           <button class="login-tab active" data-role="student">Student</button>
           <button class="login-tab" data-role="admin">Admin</button>
+          <button class="login-tab" data-role="department">Department</button>
         </div>
 
         <form id="loginForm">
@@ -192,15 +193,13 @@
 
           <label for="loginPassword">Password</label>
           <input id="loginPassword" type="password" placeholder="Enter password" required>
+          <button type="button" class="password-toggle" data-password-target="loginPassword" aria-label="Show password"><i class="fa-regular fa-eye"></i></button>
 
           <button class="button button-primary full-button" type="submit">
             Login <i class="fa-solid fa-arrow-right"></i>
           </button>
         </form>
 
-        <p class="form-note">
-          Demo website: enter any email and password to continue.
-        </p>
       </div>
     </section>
 

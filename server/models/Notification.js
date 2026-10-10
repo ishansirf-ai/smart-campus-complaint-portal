@@ -11,11 +11,11 @@ const notificationSchema = new mongoose.Schema(
       index: true
     },
 
-    // Complaint connected to this message.
+    // Complaint connected to this message. System notifications can omit it.
     complaint: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Complaint",
-      required: true
+      default: null
     },
 
     // Notification message shown in dashboard.
@@ -36,6 +36,11 @@ const notificationSchema = new mongoose.Schema(
         "overdue",
         "resolved",
         "reopened",
+        "escalated",
+        "department-assignment",
+        "work-assigned",
+        "remark",
+        "account",
         "system"
       ],
       default: "system"

@@ -1,47 +1,74 @@
 const mongoose = require("mongoose");
-const { categoryDepartmentMap } = require("../config/portal");
 
-// Use the same categories defined in portal.js.
-const categories = Object.keys(categoryDepartmentMap);
-
-// This stores every status change in the complaint timeline.
+// Every status action is retained so students, staff, and administrators can
+// see a clear complaint timeline.
 const historySchema = new mongoose.Schema(
   {
-    // Example: Submitted, Assigned, In Progress, Resolved.
-    status: {
-      type: String,
-      required: true
-    },
-
-    // Department/admin can write a short explanation.
-    note: {
-      type: String,
-      trim: true,
-      maxlength: 500,
-      default: ""
-    },
-
-    // User who changed the complaint status.
-    changedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
-    },
-
-    // Date and time of this status change.
-    changedAt: {
-      type: Date,
-      default: Date.now
-    }
+    status: { type: String, required: true },
+    note: { type: String, trim: true, maxlength: 1000, default: "" },
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    changedAt: { type: Date, default: Date.now }
   },
-  {
-    _id: false
-  }
+  { _id: false }
 );
 
-// Main complaint collection schema.
+const attachmentSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true, trim: true },
+    originalName: { type: String, trim: true, maxlength: 180, default: "" },
+    mimeType: { type: String, trim: true, maxlength: 100, default: "" },
+    uploadedAt: { type: Date, default: Date.now }
+  },
+  { _id: false }
+);
+
+const departmentRemarkSchema = new mongoose.Schema(
+  {
+    remark: { type: String, required: true, trim: true, maxlength: 1000 },
+    addedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    addedAt: { type: Date, default: Date.now }
+  },
+  { _id: false }
+);
+
+const workAssignmentSchema = new mongoose.Schema(
+  {
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    workDescription: { type: String, required: true, trim: true, maxlength: 1000 },
+    dueDate: { type: Date, required: true },
+    workStatus: {
+      type: String,
+      enum: ["Assigned", "In Progress", "Completed"],
+      default: "Assigned"
+    },
+    createdAt: { type: Date, default: Date.now }
+  },
+  { _id: true }
+);
+
+const locationDetailsSchema = new mongoose.Schema(
+  {
+    block: { type: String, trim: true, maxlength: 80, default: "" },
+    room: { type: String, trim: true, maxlength: 80, default: "" }
+  },
+  { _id: false }
+);
+
+const busDetailsSchema = new mongoose.Schema(
+  {
+    problemType: { type: String, trim: true, maxlength: 100, default: "" },
+    busNumber: { type: String, trim: true, maxlength: 50, default: "" },
+    route: { type: String, trim: true, maxlength: 120, default: "" },
+    busStop: { type: String, trim: true, maxlength: 120, default: "" },
+    travelDate: { type: Date, default: null },
+    travelTime: { type: String, trim: true, maxlength: 30, default: "" }
+  },
+  { _id: false }
+);
+
 const complaintSchema = new mongoose.Schema(
   {
-    // Private tracking ID, for example CMP-20261003-A12B.
     ticketId: {
       type: String,
       required: true,
@@ -50,15 +77,7 @@ const complaintSchema = new mongoose.Schema(
       trim: true,
       index: true
     },
-
-    // Student who submitted complaint.
-    student: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true
-    },
-
-    // Short issue heading.
+    student: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     title: {
       type: String,
       required: [true, "Complaint title is required."],
@@ -66,15 +85,9 @@ const complaintSchema = new mongoose.Schema(
       minlength: 5,
       maxlength: 120
     },
-
-    // Electrical, Internet, Cleanliness and so on.
-    category: {
-      type: String,
-      required: true,
-      enum: categories
-    },
-
-    // Example: Block A - Room 203.
+    // A Category document validates new submissions. Avoiding a static enum
+    // preserves historic category values when admins manage categories.
+    category: { type: String, required: true, trim: true, maxlength: 100, index: true },
     location: {
       type: String,
       required: [true, "Exact location is required."],
@@ -82,15 +95,13 @@ const complaintSchema = new mongoose.Schema(
       minlength: 3,
       maxlength: 150
     },
-
-    // Low / Normal / High / Emergency.
+    locationDetails: { type: locationDetailsSchema, default: () => ({}) },
+    busDetails: { type: busDetailsSchema, default: () => ({}) },
     priority: {
       type: String,
       enum: ["Low", "Normal", "High", "Emergency"],
       default: "Normal"
     },
-
-    // Full problem explanation from student.
     description: {
       type: String,
       required: [true, "Description is required."],
@@ -98,103 +109,41 @@ const complaintSchema = new mongoose.Schema(
       minlength: 10,
       maxlength: 2000
     },
-
-    // Automatically selected from category.
-    department: {
-      type: String,
-      required: true,
-      trim: true
-    },
-
-    // Department staff member assigned to resolve this complaint.
-    assignedTo: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null
-    },
-
-    // Submitted → Assigned → In Progress → Resolved.
+    // Set by backend category routing; students cannot select it themselves.
+    department: { type: String, required: true, trim: true, index: true },
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    acceptedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    acceptedAt: { type: Date, default: null },
     status: {
       type: String,
-      enum: [
-        "Submitted",
-        "Assigned",
-        "In Progress",
-        "Resolved",
-        "Closed",
-        "Reopened",
-        "Rejected"
-      ],
-      default: "Submitted"
+      enum: ["Submitted", "Assigned", "In Progress", "Resolved", "Closed", "Reopened", "Rejected"],
+      default: "Submitted",
+      index: true
     },
-
-    // Separate overdue flag looks more professional than changing status.
-    isOverdue: {
-      type: Boolean,
-      default: false
-    },
-
-    // Due date depends on complaint priority.
-    dueDate: {
-      type: Date,
-      required: true
-    },
-
-    // Student issue photo path, for example /uploads/photo.jpg.
-    beforePhoto: {
-      type: String,
-      default: ""
-    },
-
-    // Department resolution proof photo.
-    afterPhoto: {
-      type: String,
-      default: ""
-    },
-
-    // Final explanation written by department/admin.
-    resolutionNote: {
-      type: String,
-      trim: true,
-      maxlength: 1000,
-      default: ""
-    },
-
-    // Date when complaint was resolved.
-    resolvedAt: {
-      type: Date,
-      default: null
-    },
-
-    // Student can reopen an unsatisfactory resolution.
-    reopenReason: {
-      type: String,
-      trim: true,
-      maxlength: 500,
-      default: ""
-    },
-
-    // Number of times student reopened complaint.
-    reopenCount: {
-      type: Number,
-      default: 0
-    },
-
-    // Complete audit trail/status timeline.
-    history: {
-      type: [historySchema],
-      default: []
-    }
+    isOverdue: { type: Boolean, default: false },
+    isEscalated: { type: Boolean, default: false, index: true },
+    escalatedAt: { type: Date, default: null },
+    dueDate: { type: Date, required: true, index: true },
+    // Retained for existing screens while the attachments array supports PDF
+    // and multiple evidence files.
+    beforePhoto: { type: String, default: "" },
+    afterPhoto: { type: String, default: "" },
+    attachments: { type: [attachmentSchema], default: [] },
+    departmentRemarks: { type: [departmentRemarkSchema], default: [] },
+    adminResponse: { type: String, trim: true, maxlength: 1000, default: "" },
+    workAssignments: { type: [workAssignmentSchema], default: [] },
+    resolutionNote: { type: String, trim: true, maxlength: 1000, default: "" },
+    resolvedAt: { type: Date, default: null },
+    reopenReason: { type: String, trim: true, maxlength: 500, default: "" },
+    reopenCount: { type: Number, default: 0 },
+    similarTo: { type: mongoose.Schema.Types.ObjectId, ref: "Complaint", default: null },
+    history: { type: [historySchema], default: [] }
   },
-  {
-    timestamps: true
-  }
+  { timestamps: true }
 );
 
-// Useful indexes for admin dashboard filtering.
 complaintSchema.index({ student: 1, createdAt: -1 });
-complaintSchema.index({ department: 1, status: 1 });
+complaintSchema.index({ department: 1, status: 1, createdAt: -1 });
 complaintSchema.index({ isOverdue: 1, dueDate: 1 });
 
-// Create MongoDB Complaint collection model.
 module.exports = mongoose.model("Complaint", complaintSchema);

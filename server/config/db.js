@@ -12,7 +12,12 @@ async function connectDatabase() {
   }
 
   // Connect Mongoose to MongoDB.
-  const connection = await mongoose.connect(mongoUri);
+  const connection = await mongoose.connect(mongoUri, {
+    // Give a clear startup error instead of leaving the browser on a failed
+    // fetch while Atlas/DNS/network access is unavailable.
+    serverSelectionTimeoutMS: 10000,
+    connectTimeoutMS: 10000
+  });
 
   // Show successful connection in terminal.
   console.log(`MongoDB connected: ${connection.connection.host}`);

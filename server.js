@@ -11,10 +11,13 @@ const authRoutes = require("./server/routes/authRoutes");
 const complaintRoutes = require("./server/routes/complaintRoutes");
 const notificationRoutes = require("./server/routes/notificationRoutes");
 const adminRoutes = require("./server/routes/adminRoutes");
+const departmentRoutes = require("./server/routes/departmentRoutes");
+const noticeRoutes = require("./server/routes/noticeRoutes");
 
 const {
   startOverdueJob
 } = require("./server/jobs/overdueJob");
+const { ensurePortalData } = require("./server/services/portalBootstrap");
 
 const {
   notFound,
@@ -67,9 +70,12 @@ app.use(
   express.static(path.join(__dirname, "uploads"))
 );
 
-app.get("/", (req, res) => {
+function sendPortalApp(req, res) {
   res.sendFile(path.join(__dirname, "index.html"));
-});
+}
+
+// Separate bookmarkable entry URLs for each role portal.
+app.get(["/", "/student-login", "/admin-login", "/department-login"], sendPortalApp);
 
 app.get("/api/health", (req, res) => {
   res.json({
@@ -82,6 +88,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/complaints", complaintRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/department", departmentRoutes);
+app.use("/api/notices", noticeRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
@@ -90,6 +98,7 @@ async function startServer() {
   validateEnvironment();
 
   await connectDatabase();
+  await ensurePortalData();
 
   // Start automatic overdue/SLA feature.
   startOverdueJob();
