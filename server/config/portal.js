@@ -33,9 +33,29 @@ const DEPARTMENT_CODES = DEPARTMENTS.map((department) => department.code);
 // It does not create a sixth Department account.
 const ROUTING_TARGETS = [...DEPARTMENT_CODES, "ADMIN"];
 
+// Categories that only administrators can manage.
+const ADMIN_ONLY_CATEGORY_NAMES = Object.freeze([
+  "Hostel",
+  "Parking",
+  "Bus",
+  "Library"
+]);
+
 // These are seeded into MongoDB when the server starts. Administrators can
 // later change the destination department in the Categories screen.
 const DEFAULT_CATEGORIES = Object.freeze([
+  // New student-facing categories.
+  { name: "Campus", department: "CIVIL", description: "Campus grounds and common-area concerns." },
+  { name: "Parking", department: "ADMIN", description: "Parking concerns managed by administration.", isAdminOnly: true },
+  { name: "Library", department: "ADMIN", description: "Library concerns managed by administration.", isAdminOnly: true },
+  { name: "Hostel", department: "ADMIN", description: "Hostel concerns managed by administration.", isAdminOnly: true },
+  { name: "Bus", department: "ADMIN", description: "Bus and transport concerns managed by administration.", isAdminOnly: true },
+  { name: "Water", department: "CIVIL", description: "Water supply, leakage and sanitation concerns." },
+  { name: "Food", department: "ADMIN", description: "Food-service concerns managed by administration.", isAdminOnly: true },
+  { name: "Attendance", department: "ADMIN", description: "Attendance concerns managed by academic administration.", isAdminOnly: true },
+  { name: "Personal Complaint", department: "ADMIN", description: "Private student concern reviewed only by administration.", isAdminOnly: true },
+
+  // Existing categories are retained to preserve historic complaint records.
   { name: "Electrical", department: "EC" },
   { name: "Water Leakage", department: "CIVIL" },
   { name: "Classroom Equipment", department: "CSE" },
@@ -87,6 +107,12 @@ function isValidRoutingTarget(target) {
   return ROUTING_TARGETS.includes(String(target || "").trim());
 }
 
+function isAdminOnlyCategory(category) {
+  return ADMIN_ONLY_CATEGORY_NAMES.includes(
+    String(category || "").trim()
+  );
+}
+
 function getDepartment(category) {
   return categoryDepartmentMap[category] || "CSE";
 }
@@ -102,11 +128,13 @@ module.exports = {
   DEPARTMENTS,
   DEPARTMENT_CODES,
   ROUTING_TARGETS,
+  ADMIN_ONLY_CATEGORY_NAMES,
   DEFAULT_CATEGORIES,
   categoryDepartmentMap,
   priorityDays,
   isValidDepartment,
   isValidRoutingTarget,
+  isAdminOnlyCategory,
   getDepartment,
   getDueDate
 };

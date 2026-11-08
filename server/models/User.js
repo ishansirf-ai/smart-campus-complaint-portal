@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const { isValidDepartment } = require("../config/portal");
 
 const profileSchema = new mongoose.Schema(
   {
@@ -46,7 +47,15 @@ const userSchema = new mongoose.Schema(
     department: {
       type: String,
       trim: true,
-      default: ""
+      default: "",
+      validate: {
+        validator(value) {
+          if (this.role === "admin") return true;
+          if (!this.isNew && !this.isModified("department")) return true;
+          return isValidDepartment(value);
+        },
+        message: "Student and department accounts must use a valid department."
+      }
     },
     semester: {
       type: String,
@@ -78,6 +87,10 @@ const userSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true
+    },
+    sessionVersion: {
+      type: Number,
+      default: 0
     },
     passwordResetOtpHash: {
       type: String,

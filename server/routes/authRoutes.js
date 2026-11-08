@@ -22,6 +22,13 @@ const portalRoles = {
   department: "department"
 };
 
+// A short cooldown limits reset-email abuse without making a genuine student
+// wait a full minute before requesting another code.
+const OTP_RESEND_COOLDOWN_SECONDS = Math.max(
+  20,
+  Number(process.env.OTP_RESEND_COOLDOWN_SECONDS) || 30
+);
+
 function validationMessage(req, res) {
   const errors = validationResult(req);
   if (errors.isEmpty()) return false;
@@ -38,7 +45,8 @@ function sessionToken(user) {
     {
       id: user._id.toString(),
       role: user.role,
-      purpose: "session"
+      purpose: "session",
+      sessionVersion: user.sessionVersion || 0
     },
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
@@ -121,8 +129,12 @@ function loginForRole(expectedRole) {
         });
       }
 
-      user.lastLoginAt = new Date();
-      await user.save();
+      // Update the login timestamp without revalidating an older account that
+      // may have been created before the five valid department codes existed.
+      await User.updateOne(
+        { _id: user._id },
+        { $set: { lastLoginAt: new Date() } }
+      );
 
       await writeAudit({
         req,
@@ -386,7 +398,8 @@ router.post(
       const genericResponse = {
         success: true,
         message: "If this account is registered in this portal, an OTP has been sent.",
-        resendAfterSeconds: 60
+        resendAfterSeconds: OTP_RESEND_COOLDOWN_SECONDS,
+        otpDispatched: false
       };
 
       const user = await User.findOne({
@@ -405,14 +418,22 @@ router.post(
       const now = Date.now();
       const lastRequest = user.passwordResetRequestedAt?.getTime() || 0;
 
-      if (now - lastRequest < 60 * 1000) {
-        return res.json(genericResponse);
+      const cooldownMs = OTP_RESEND_COOLDOWN_SECONDS * 1000;
+      if (now - lastRequest < cooldownMs) {
+        return res.json({
+          ...genericResponse,
+          message: "Please wait before requesting another verification code.",
+          resendAfterSeconds: Math.max(
+            1,
+            Math.ceil((cooldownMs - (now - lastRequest)) / 1000)
+          )
+        });
       }
 
-      const otp = String(crypto.randomInt(1000, 10000));
+      const otp = String(crypto.randomInt(100000, 1000000));
       clearResetSession(user);
       user.passwordResetOtpHash = otpHash(otp);
-      user.passwordResetOtpExpiresAt = new Date(now + 10 * 60 * 1000);
+      user.passwordResetOtpExpiresAt = new Date(now + 5 * 60 * 1000);
       user.passwordResetRequestedAt = new Date(now);
       user.passwordResetAttempts = 0;
       await user.save();
@@ -427,7 +448,15 @@ router.post(
       } catch (emailError) {
         clearResetFields(user);
         await user.save();
-        throw emailError;
+        console.error(
+          "Password reset email delivery failed:",
+          emailError.message
+        );
+        return res.status(503).json({
+          success: false,
+          message:
+            "Unable to send the verification code right now. Please try again later."
+        });
       }
 
       await writeAudit({
@@ -439,7 +468,11 @@ router.post(
         details: { portal }
       });
 
-      res.json(genericResponse);
+      res.json({
+        ...genericResponse,
+        otpDispatched: true,
+        message: "Verification code sent successfully. Please check your Gmail inbox."
+      });
     } catch (error) {
       next(error);
     }
@@ -460,8 +493,8 @@ router.post(
       .withMessage("Select a valid portal."),
     body("otp")
       .trim()
-      .matches(/^[0-9]{4}$/)
-      .withMessage("Enter the 4-digit OTP.")
+      .matches(/^[0-9]{6}$/)
+      .withMessage("Enter the 6-digit OTP.")
   ],
   async (req, res, next) => {
     try {
@@ -479,7 +512,7 @@ router.post(
         !user.passwordResetOtpHash ||
         !user.passwordResetOtpExpiresAt ||
         user.passwordResetOtpExpiresAt.getTime() < Date.now() ||
-        user.passwordResetOtpHash !== otpHash(req.body.otp);
+        !hashesMatch(user.passwordResetOtpHash, otpHash(req.body.otp));
 
       if (invalid) {
         if (user) {
@@ -533,8 +566,12 @@ router.post(
       .notEmpty()
       .withMessage("Password reset verification is required."),
     body("newPassword")
-      .isLength({ min: 6, max: 128 })
-      .withMessage("New password must contain 6 to 128 characters."),
+      .isLength({ min: 8, max: 128 })
+      .withMessage("New password must contain at least 8 characters.")
+      .matches(/[A-Za-z]/)
+      .withMessage("New password must include at least one letter.")
+      .matches(/[0-9]/)
+      .withMessage("New password must include at least one number."),
     body("confirmPassword")
       .notEmpty()
       .withMessage("Confirm your new password.")
@@ -584,6 +621,7 @@ router.post(
       }
 
       user.password = req.body.newPassword;
+      user.sessionVersion = Number(user.sessionVersion || 0) + 1;
       clearResetFields(user);
       clearResetSession(user);
       await user.save();

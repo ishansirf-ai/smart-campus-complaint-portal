@@ -1,6 +1,7 @@
 const cron = require("node-cron");
 
 const Complaint = require("../models/Complaint");
+const { isAdminOnlyCategory } = require("../config/portal");
 const {
   createNotification,
   notifyDepartment,
@@ -39,12 +40,14 @@ async function markOverdueComplaints() {
       message: `Complaint ${complaint.ticketId} is overdue and escalated.`,
       type: "escalated"
     });
-    await notifyDepartment({
-      department: complaint.department,
-      complaint: complaint._id,
-      message: `Complaint ${complaint.ticketId} is overdue and needs urgent action.`,
-      type: "escalated"
-    });
+    if (!complaint.isAdminOnly && !isAdminOnlyCategory(complaint.category)) {
+      await notifyDepartment({
+        department: complaint.department,
+        complaint: complaint._id,
+        message: `Complaint ${complaint.ticketId} is overdue and needs urgent action.`,
+        type: "escalated"
+      });
+    }
     await notifyAdministrators({
       complaint: complaint._id,
       message: `Escalated complaint ${complaint.ticketId} is overdue in ${complaint.department}.`,

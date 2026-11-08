@@ -7,19 +7,36 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function getTransporter() {
-  const required = [
-    "SMTP_HOST",
-    "SMTP_PORT",
-    "SMTP_USER",
-    "SMTP_PASSWORD",
-    "SMTP_FROM"
-  ];
-  const missing = required.filter((key) => !process.env[key]);
+// A Gmail SMTP connection takes noticeably longer the first time it is opened.
+// Keep one small pool alive and remember a successful verification for a short
+// period so every password-reset request does not repeat the same handshake.
+let cachedTransporter = null;
+let verificationPromise = null;
+let verifiedUntil = 0;
+const VERIFY_CACHE_MS = 10 * 60 * 1000;
 
-  if (missing.length) {
+function smtpIsConfigured() {
+  const gmailUser = String(
+    process.env.GMAIL_USER || process.env.SMTP_USER || ""
+  ).trim();
+  const gmailPassword = String(
+    process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASSWORD || ""
+  ).replace(/\s+/g, "");
+
+  return Boolean(gmailUser && gmailPassword);
+}
+
+function getTransporter() {
+  const gmailUser = String(
+    process.env.GMAIL_USER || process.env.SMTP_USER || ""
+  ).trim();
+  const gmailPassword = String(
+    process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASSWORD || ""
+  ).replace(/\s+/g, "");
+
+  if (!gmailUser || !gmailPassword) {
     const error = new Error(
-      "Email service is not configured. Add SMTP values to .env."
+      "Email service is not configured. Add GMAIL_USER and GMAIL_APP_PASSWORD to .env."
     );
     error.statusCode = 503;
     throw error;
@@ -37,19 +54,83 @@ function getTransporter() {
     throw error;
   }
 
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: Number(process.env.SMTP_PORT) === 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASSWORD
-    }
-  });
+  if (!cachedTransporter) {
+    cachedTransporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      port: Number(process.env.SMTP_PORT || 465),
+      secure: Number(process.env.SMTP_PORT || 465) === 465,
+      // A persistent SMTP pool prevents a slow TLS/Gmail login handshake for
+      // every OTP while still waiting for Gmail to accept each message.
+      pool: true,
+      maxConnections: 2,
+      maxMessages: 100,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 30000,
+      auth: {
+        user: gmailUser,
+        pass: gmailPassword
+      }
+    });
+
+    // A network failure means the next request must establish and verify a
+    // fresh connection instead of trusting a stale cached transport.
+    cachedTransporter.on("error", () => {
+      verifiedUntil = 0;
+    });
+  }
+
+  return cachedTransporter;
+}
+
+async function verifyEmailTransport() {
+  const transporter = getTransporter();
+  if (verifiedUntil > Date.now()) return transporter;
+
+  if (!verificationPromise) {
+    verificationPromise = transporter
+      .verify()
+      .then(() => {
+        verifiedUntil = Date.now() + VERIFY_CACHE_MS;
+        return transporter;
+      })
+      .catch((error) => {
+        // Do not cache a failed configuration or connection.
+        cachedTransporter = null;
+        verifiedUntil = 0;
+        throw error;
+      })
+      .finally(() => {
+        verificationPromise = null;
+      });
+  }
+
+  await verificationPromise;
+  return transporter;
+}
+
+// Warm the SMTP connection after the portal starts. It is deliberately
+// non-blocking: a bad Gmail configuration must not prevent the complaint
+// portal from starting, but the first real OTP request will still return a
+// clear error if Gmail cannot accept it.
+async function warmEmailTransport() {
+  if (!smtpIsConfigured()) {
+    console.warn("Gmail SMTP is not configured; password-reset emails are unavailable.");
+    return false;
+  }
+
+  try {
+    await verifyEmailTransport();
+    console.log("Gmail SMTP is ready for password-reset emails.");
+    return true;
+  } catch (error) {
+    console.error(`Gmail SMTP warm-up failed: ${error.message}`);
+    return false;
+  }
 }
 
 async function sendPasswordResetOtp({ to, fullName, otp, portal }) {
-  const transporter = getTransporter();
+  const transporter = await verifyEmailTransport();
   const portalNames = {
     student: "Student Complaint Portal",
     admin: "Administrator Portal",
@@ -59,12 +140,13 @@ async function sendPasswordResetOtp({ to, fullName, otp, portal }) {
   const safeName = escapeHtml(fullName || "BGMIT Portal User");
 
   const plainText = [
-    "BGMIT Smart College Complaint Portal",
+    "BGMIT Mudhol - Smart College Complaint Portal",
     "",
     "Password Reset Request",
     "Your verification OTP is: " + otp,
-    "This OTP is valid for 10 minutes.",
-    "If you did not request this password reset, please ignore this email."
+    "This OTP is valid for 5 minutes.",
+    "Do not share this OTP with anyone.",
+    "If you did not request this password reset, please ignore this email. Your password will remain unchanged."
   ].join("\n");
 
   const html =
@@ -80,21 +162,34 @@ async function sendPasswordResetOtp({ to, fullName, otp, portal }) {
     '<h2 style="margin:0 0 12px;color:#0b4f8f;font-size:22px;">Password Reset Request</h2>' +
     '<p style="margin:0 0 22px;line-height:1.6;">Use this one-time verification code to reset your password.</p>' +
     '<div style="background:#f1f8ff;border:1px solid #bedcf7;border-radius:12px;color:#0b5597;font-size:34px;font-weight:800;letter-spacing:10px;padding:18px;text-align:center;">' + otp + '</div>' +
-    '<p style="margin:22px 0 0;line-height:1.6;"><strong>This OTP is valid for 10 minutes.</strong></p>' +
+    '<p style="margin:22px 0 0;line-height:1.6;"><strong>This OTP is valid for 5 minutes.</strong></p>' +
     '<p style="margin:10px 0 0;line-height:1.6;color:#6b4c32;">If you did not request this password reset, please ignore this email. Never share this OTP with anyone.</p>' +
     '</div>' +
     '<div style="background:#f4f8fb;border-top:1px solid #dfeaf3;padding:18px 32px;color:#647b90;font-size:12px;text-align:center;">BGMIT Smart College Complaint Portal<br>Build for a better campus</div>' +
     '</div></div>';
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM,
+  const delivery = await transporter.sendMail({
+    from: process.env.SMTP_FROM || `${process.env.MAIL_FROM_NAME || "BGMIT Mudhol - Biluru Gurubasava Mahaswamiji Institute of Technology"} <${process.env.GMAIL_USER || process.env.SMTP_USER}>`,
     to,
-    subject: "BGMIT Password Reset OTP",
+    subject: "BGMIT Mudhol - Password Reset Verification Code",
     text: plainText,
     html
   });
+
+  if (delivery.rejected?.length) {
+    const error = new Error("Gmail rejected the password reset message.");
+    error.statusCode = 503;
+    throw error;
+  }
+
+  // A successful send can reuse this verified transport without another
+  // verification request. Gmail has accepted the message at this point.
+  verifiedUntil = Date.now() + VERIFY_CACHE_MS;
+  console.log("Password reset email accepted by Gmail SMTP.");
 }
 
 module.exports = {
-  sendPasswordResetOtp
+  sendPasswordResetOtp,
+  verifyEmailTransport,
+  warmEmailTransport
 };

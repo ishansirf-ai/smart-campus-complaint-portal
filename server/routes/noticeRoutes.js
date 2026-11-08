@@ -100,6 +100,7 @@ router.get("/", async (req, res, next) => {
     const now = new Date();
     const notices = await CampusNotice.find({
       isActive: true,
+      audience: "all",
       publishedAt: { $lte: now },
       $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }]
     })

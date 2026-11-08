@@ -3,7 +3,8 @@ const Category = require("../models/Category");
 const SystemSetting = require("../models/SystemSetting");
 const {
   DEPARTMENTS,
-  DEFAULT_CATEGORIES
+  DEFAULT_CATEGORIES,
+  ADMIN_ONLY_CATEGORY_NAMES
 } = require("../config/portal");
 
 async function ensurePortalData() {
@@ -27,6 +28,20 @@ async function ensurePortalData() {
     )
   );
 
+  // Apply the non-negotiable administrator-only policy to existing category
+  // records without overwriting an administrator's other route choices.
+  await Category.updateMany(
+    { name: { $in: ADMIN_ONLY_CATEGORY_NAMES } },
+    { $set: { isAdminOnly: true } }
+  );
+
+  // Old aliases stay in history, but students cannot submit duplicate Bus,
+  // Library, or Hostel categories after the new names are introduced.
+  await Category.updateMany(
+    { name: { $in: ["Bus / Transport Problem", "Library Problem", "Hostel Problem"] } },
+    { $set: { isStudentVisible: false } }
+  );
+
   await Promise.all([
     SystemSetting.updateOne(
       { key: "portalName" },
@@ -46,6 +61,16 @@ async function ensurePortalData() {
     SystemSetting.updateOne(
       { key: "maintenanceMessage" },
       { $setOnInsert: { key: "maintenanceMessage", value: "" } },
+      { upsert: true }
+    ),
+    SystemSetting.updateOne(
+      { key: "monthlyComplaintLimit" },
+      { $setOnInsert: { key: "monthlyComplaintLimit", value: 5 } },
+      { upsert: true }
+    ),
+    SystemSetting.updateOne(
+      { key: "defaultComplaintPriority" },
+      { $setOnInsert: { key: "defaultComplaintPriority", value: "Normal" } },
       { upsert: true }
     )
   ]);

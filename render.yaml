@@ -1,0 +1,33 @@
+# Deploy this project on Render as a public Node/Express web service.
+# Secrets are requested in the Render dashboard and are never committed here.
+services:
+  - type: web
+    name: bgmit-smart-college-portal
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 24.21.0
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: BGMIT Mudhol - Smart College Complaint Portal
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: OTP_RESEND_COOLDOWN_SECONDS
+        value: "30"

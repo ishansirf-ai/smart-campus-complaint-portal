@@ -4,12 +4,16 @@ const mongoose = require("mongoose");
 const Complaint = require("../models/Complaint");
 const User = require("../models/User");
 const { protect, authorize } = require("../middleware/auth");
+const {
+  ADMIN_ONLY_CATEGORY_NAMES
+} = require("../config/portal");
 const { imageUpload } = require("../middleware/upload");
 const {
   createNotification
 } = require("../utils/notifications");
 const { publicUser } = require("../utils/publicUser");
 const { writeAudit } = require("../utils/audit");
+const { sendStoredUpload } = require("../utils/secureUploads");
 
 const router = express.Router();
 const statuses = ["Assigned", "In Progress", "Resolved", "Closed", "Rejected"];
@@ -21,8 +25,21 @@ router.use(protect, authorize("department", "admin"));
 
 function getDepartmentScope(user) {
   return user.role === "department"
-    ? { department: user.department }
+    ? {
+      department: user.department,
+      isAdminOnly: { $ne: true },
+      category: { $nin: ADMIN_ONLY_CATEGORY_NAMES }
+    }
     : {};
+}
+
+function addExactFilter(query, field, value) {
+  if (query[field] && typeof query[field] === "object") {
+    query.$and = query.$and || [];
+    query.$and.push({ [field]: value });
+    return;
+  }
+  query[field] = value;
 }
 
 function escapeRegex(text) {
@@ -38,7 +55,9 @@ function escapeRegex(text) {
 function complaintQuery(req) {
   const query = getDepartmentScope(req.user);
   ["status", "category", "priority"].forEach((field) => {
-    if (req.query[field]) query[field] = String(req.query[field]).trim();
+    if (req.query[field]) {
+      addExactFilter(query, field, String(req.query[field]).trim());
+    }
   });
   if (req.query.isOverdue === "true") query.isOverdue = true;
   if (req.user.role === "admin" && req.query.department) {
@@ -138,6 +157,46 @@ router.get("/complaints", async (req, res, next) => {
         total,
         pages: Math.ceil(total / limit)
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/complaints/:id/attachments/:index", async (req, res, next) => {
+  try {
+    const complaint = await findScopedComplaint(req, req.params.id);
+    const index = Number(req.params.index);
+    if (!complaint || !Number.isInteger(index) || index < 0) {
+      return res.status(404).json({ success: false, message: "Attachment not found or not allowed." });
+    }
+    const attachment = complaint.attachments?.[index];
+    if (!attachment) {
+      return res.status(404).json({ success: false, message: "Attachment not found." });
+    }
+    return sendStoredUpload(res, {
+      uploadUrl: attachment.url,
+      mimeType: attachment.mimeType,
+      downloadName: attachment.originalName
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/complaints/:id/media/:kind", async (req, res, next) => {
+  try {
+    if (!["before", "after"].includes(req.params.kind)) {
+      return res.status(400).json({ success: false, message: "Invalid media request." });
+    }
+    const complaint = await findScopedComplaint(req, req.params.id);
+    const uploadUrl = req.params.kind === "before" ? complaint?.beforePhoto : complaint?.afterPhoto;
+    if (!uploadUrl) {
+      return res.status(404).json({ success: false, message: "Photo not found or not allowed." });
+    }
+    return sendStoredUpload(res, {
+      uploadUrl,
+      downloadName: `${complaint.ticketId}-${req.params.kind}-photo`
     });
   } catch (error) {
     next(error);

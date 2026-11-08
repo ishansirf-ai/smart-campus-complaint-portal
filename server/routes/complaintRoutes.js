@@ -8,18 +8,29 @@ const Category = require("../models/Category");
 
 const { protect, studentOnly } = require("../middleware/auth");
 const { complaintUpload } = require("../middleware/upload");
-const { getDueDate } = require("../config/portal");
+const {
+  getDueDate,
+  isAdminOnlyCategory
+} = require("../config/portal");
 const {
   createNotification,
   notifyDepartment,
   notifyAdministrators
 } = require("../utils/notifications");
 const { writeAudit } = require("../utils/audit");
+const { sendStoredUpload } = require("../utils/secureUploads");
+const {
+  getMonthlySubmissionSummary,
+  reserveMonthlySubmission,
+  releaseMonthlySubmission
+} = require("../utils/submissionLimit");
+const {
+  getComplaintSubmissionSettings
+} = require("../utils/portalSettings");
 
 const router = express.Router();
-const allowedPriorities = ["Low", "Normal", "High", "Emergency"];
 const closedStatuses = ["Resolved", "Closed", "Rejected"];
-const busCategoryName = "Bus / Transport Problem";
+const busCategoryName = "Bus";
 
 function createTicketId() {
   const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
@@ -128,12 +139,14 @@ async function checkOverdue(complaint) {
       message: "Complaint " + complaint.ticketId + " is overdue and has been escalated.",
       type: "overdue"
     });
-    await notifyDepartment({
-      department: complaint.department,
-      complaint: complaint._id,
-      message: "Overdue complaint " + complaint.ticketId + " needs attention.",
-      type: "overdue"
-    });
+    if (!complaint.isAdminOnly && !isAdminOnlyCategory(complaint.category)) {
+      await notifyDepartment({
+        department: complaint.department,
+        complaint: complaint._id,
+        message: "Overdue complaint " + complaint.ticketId + " needs attention.",
+        type: "overdue"
+      });
+    }
     await notifyAdministrators({
       complaint: complaint._id,
       message: "Escalated complaint " + complaint.ticketId + " is overdue in " + complaint.department + ".",
@@ -150,14 +163,21 @@ async function populateStudentComplaint(query) {
     .populate("acceptedBy", "fullName department")
     .populate("departmentRemarks.addedBy", "fullName department")
     .populate("workAssignments.assignedTo", "fullName department")
-    .populate("workAssignments.assignedBy", "fullName department");
+    .populate("workAssignments.assignedBy", "fullName department")
+    .populate("history.changedBy", "fullName role department");
 }
 
 router.get("/categories", async (req, res, next) => {
   try {
-    const categories = await Category.find({ isActive: true })
+    const categories = await Category.find({
+      isActive: true,
+      $or: [
+        { isStudentVisible: true },
+        { isStudentVisible: { $exists: false } }
+      ]
+    })
       .sort({ name: 1 })
-      .select("name department description");
+      .select("name department description isAdminOnly");
 
     res.json({ success: true, categories });
   } catch (error) {
@@ -210,7 +230,6 @@ router.post(
       const title = String(req.body.title || "").trim();
       const categoryName = String(req.body.category || "").trim();
       const enteredLocation = String(req.body.location || "").trim();
-      const priority = String(req.body.priority || "Normal").trim();
       const description = String(req.body.description || "").trim();
 
       if (title.length < 5) {
@@ -225,16 +244,13 @@ router.post(
           message: "Description must contain at least 10 characters."
         });
       }
-      if (!allowedPriorities.includes(priority)) {
-        return res.status(400).json({
-          success: false,
-          message: "Select a valid priority."
-        });
-      }
-
       const category = await Category.findOne({
         name: categoryName,
-        isActive: true
+        isActive: true,
+        $or: [
+          { isStudentVisible: true },
+          { isStudentVisible: { $exists: false } }
+        ]
       });
       if (!category) {
         return res.status(400).json({
@@ -290,32 +306,60 @@ router.post(
         similarTo = similarComplaint?._id || null;
       }
 
-      const complaint = await Complaint.create({
-        ticketId: await createUniqueTicketId(),
-        student: req.user._id,
-        title,
-        category: category.name,
-        location,
-        priority,
-        description,
-        department: category.department,
-        locationDetails: {
-          block: String(req.body.block || "").trim(),
-          room: String(req.body.room || "").trim()
-        },
-        busDetails: isBusComplaint ? busDetails : undefined,
-        dueDate: getDueDate(priority),
-        beforePhoto: imageFile ? "/uploads/" + imageFile.filename : "",
-        attachments: files.map(attachmentFromFile),
-        similarTo,
-        history: [
-          {
-            status: "Submitted",
-            note: "Complaint submitted by student.",
-            changedBy: req.user._id
-          }
-        ]
-      });
+      // The student never controls priority or due date. Both come from
+      // administrator-configured backend rules.
+      const submissionSettings = await getComplaintSubmissionSettings();
+      const priority = submissionSettings.defaultComplaintPriority;
+      const reservation = await reserveMonthlySubmission(
+        req.user._id,
+        submissionSettings.monthlyComplaintLimit
+      );
+      if (!reservation.allowed) {
+        return res.status(429).json({
+          success: false,
+          message:
+            "You have reached your monthly complaint limit of " +
+            reservation.limit +
+            ". You can submit again next month.",
+          monthlySubmission: reservation
+        });
+      }
+
+      let complaint;
+      try {
+        complaint = await Complaint.create({
+          ticketId: await createUniqueTicketId(),
+          student: req.user._id,
+          submittedAt: new Date(),
+          title,
+          category: category.name,
+          location,
+          priority,
+          description,
+          department: category.department,
+          isAdminOnly:
+            category.isAdminOnly || isAdminOnlyCategory(category.name),
+          locationDetails: {
+            block: String(req.body.block || "").trim(),
+            room: String(req.body.room || "").trim()
+          },
+          busDetails: isBusComplaint ? busDetails : undefined,
+          dueDate: getDueDate(priority),
+          beforePhoto: imageFile ? "/uploads/" + imageFile.filename : "",
+          attachments: files.map(attachmentFromFile),
+          similarTo,
+          history: [
+            {
+              status: "Submitted",
+              note: "Complaint submitted by student.",
+              changedBy: req.user._id
+            }
+          ]
+        });
+      } catch (error) {
+        await releaseMonthlySubmission(reservation);
+        throw error;
+      }
 
       await createNotification({
         recipient: req.user._id,
@@ -324,21 +368,23 @@ router.post(
           "Your complaint " +
           complaint.ticketId +
           " was submitted and routed to " +
-          complaint.department +
+          (complaint.isAdminOnly ? "Administration" : complaint.department) +
           ".",
         type: "complaint-created"
       });
-      await notifyDepartment({
-        department: complaint.department,
-        complaint: complaint._id,
-        message:
-          "New " +
-          complaint.department +
-          " complaint " +
-          complaint.ticketId +
-          " has been submitted.",
-        type: "department-assignment"
-      });
+      if (!complaint.isAdminOnly) {
+        await notifyDepartment({
+          department: complaint.department,
+          complaint: complaint._id,
+          message:
+            "New " +
+            complaint.department +
+            " complaint " +
+            complaint.ticketId +
+            " has been submitted.",
+          type: "department-assignment"
+        });
+      }
       await notifyAdministrators({
         complaint: complaint._id,
         message: "New complaint " + complaint.ticketId + " was submitted for " + complaint.department + ".",
@@ -351,14 +397,20 @@ router.post(
         entityId: complaint._id,
         details: {
           ticketId: complaint.ticketId,
-          department: complaint.department
+          department: complaint.department,
+          isAdminOnly: complaint.isAdminOnly
         }
       });
 
       res.status(201).json({
         success: true,
         message: "Complaint submitted successfully.",
-        complaint
+        complaint,
+        monthlySubmission: {
+          limit: reservation.limit,
+          submitted: reservation.submitted,
+          remaining: reservation.remaining
+        }
       });
     } catch (error) {
       next(error);
@@ -414,21 +466,25 @@ router.get("/my", protect, studentOnly, async (req, res, next) => {
 
 router.get("/dashboard", protect, studentOnly, async (req, res, next) => {
   try {
-    const complaints = await Complaint.find({
-      student: req.user._id
-    }).sort({ createdAt: -1 });
+    const [complaints, submissionSettings] = await Promise.all([
+      Complaint.find({ student: req.user._id }).sort({ createdAt: -1 }),
+      getComplaintSubmissionSettings()
+    ]);
     await Promise.all(complaints.map(checkOverdue));
 
     const summary = {
       total: complaints.length,
-      submitted: complaints.filter((item) => item.status === "Submitted")
+      pending: complaints.filter((item) =>
+        ["Submitted", "Assigned", "Reopened"].includes(item.status)
+      )
         .length,
       inProgress: complaints.filter((item) =>
-        ["Assigned", "In Progress", "Reopened"].includes(item.status)
+        item.status === "In Progress"
       ).length,
       resolved: complaints.filter((item) =>
         ["Resolved", "Closed"].includes(item.status)
       ).length,
+      rejected: complaints.filter((item) => item.status === "Rejected").length,
       overdue: complaints.filter((item) => item.isOverdue).length
     };
     const byCategory = Object.entries(
@@ -438,10 +494,16 @@ router.get("/dashboard", protect, studentOnly, async (req, res, next) => {
       }, {})
     ).map(([label, value]) => ({ label, value }));
 
+    const monthlySubmission = await getMonthlySubmissionSummary(
+      req.user._id,
+      submissionSettings.monthlyComplaintLimit
+    );
+
     res.json({
       success: true,
       summary,
       byCategory,
+      monthlySubmission,
       recentComplaints: complaints.slice(0, 5)
     });
   } catch (error) {
@@ -449,15 +511,22 @@ router.get("/dashboard", protect, studentOnly, async (req, res, next) => {
   }
 });
 
-// Public tracking exposes safe status data only.
-router.get("/track/:ticketId", async (req, res, next) => {
+// Tracking is intentionally private: a student can track only their own
+// complaint. This prevents a guessed ticket ID from exposing another
+// student's location, attachments, remarks, or timeline.
+router.get("/track/:ticketId", protect, studentOnly, async (req, res, next) => {
   try {
     const ticketId = String(req.params.ticketId || "").toUpperCase();
-    const complaint = await Complaint.findOne({ ticketId });
+    const complaint = await populateStudentComplaint(
+      Complaint.findOne({
+        ticketId,
+        student: req.user._id
+      })
+    );
     if (!complaint) {
       return res.status(404).json({
         success: false,
-        message: "Complaint ID was not found."
+        message: "Complaint ID was not found in your account."
       });
     }
     await checkOverdue(complaint);
@@ -465,22 +534,80 @@ router.get("/track/:ticketId", async (req, res, next) => {
     res.json({
       success: true,
       complaint: {
+        _id: complaint._id,
         ticketId: complaint.ticketId,
         title: complaint.title,
         category: complaint.category,
         location: complaint.location,
+        description: complaint.description,
         priority: complaint.priority,
         status: complaint.status,
-        department: complaint.department,
+        department: complaint.isAdminOnly ? "Administration" : complaint.department,
+        isAdminOnly: complaint.isAdminOnly,
+        assignedTo: complaint.assignedTo,
+        acceptedBy: complaint.acceptedBy,
+        acceptedAt: complaint.acceptedAt,
         isOverdue: complaint.isOverdue,
+        isEscalated: complaint.isEscalated,
+        escalatedAt: complaint.escalatedAt,
+        submittedAt: complaint.submittedAt || complaint.createdAt,
         dueDate: complaint.dueDate,
         beforePhoto: complaint.beforePhoto,
         afterPhoto: complaint.afterPhoto,
+        attachments: complaint.attachments,
+        departmentRemarks: complaint.departmentRemarks,
+        adminResponse: complaint.adminResponse,
+        workAssignments: complaint.workAssignments,
         resolutionNote: complaint.resolutionNote,
         createdAt: complaint.createdAt,
         resolvedAt: complaint.resolvedAt,
         history: complaint.history
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Student evidence is streamed only after ownership is verified. URLs stored
+// in MongoDB are never directly public files.
+router.get("/:id/attachments/:index", protect, studentOnly, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Invalid complaint ID." });
+    }
+    const index = Number(req.params.index);
+    if (!Number.isInteger(index) || index < 0) {
+      return res.status(400).json({ success: false, message: "Invalid attachment." });
+    }
+    const complaint = await Complaint.findOne({ _id: req.params.id, student: req.user._id });
+    const attachment = complaint?.attachments?.[index];
+    if (!attachment) {
+      return res.status(404).json({ success: false, message: "Attachment not found." });
+    }
+    return sendStoredUpload(res, {
+      uploadUrl: attachment.url,
+      mimeType: attachment.mimeType,
+      downloadName: attachment.originalName
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/:id/media/:kind", protect, studentOnly, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id) || !["before", "after"].includes(req.params.kind)) {
+      return res.status(400).json({ success: false, message: "Invalid media request." });
+    }
+    const complaint = await Complaint.findOne({ _id: req.params.id, student: req.user._id });
+    const uploadUrl = req.params.kind === "before" ? complaint?.beforePhoto : complaint?.afterPhoto;
+    if (!uploadUrl) {
+      return res.status(404).json({ success: false, message: "Photo not found." });
+    }
+    return sendStoredUpload(res, {
+      uploadUrl,
+      downloadName: `${complaint.ticketId}-${req.params.kind}-photo`
     });
   } catch (error) {
     next(error);
@@ -634,12 +761,14 @@ router.patch("/:id/reopen", protect, studentOnly, async (req, res, next) => {
       message: "Complaint " + complaint.ticketId + " was reopened successfully.",
       type: "reopened"
     });
-    await notifyDepartment({
-      department: complaint.department,
-      complaint: complaint._id,
-      message: "Complaint " + complaint.ticketId + " was reopened by the student.",
-      type: "reopened"
-    });
+    if (!complaint.isAdminOnly && !isAdminOnlyCategory(complaint.category)) {
+      await notifyDepartment({
+        department: complaint.department,
+        complaint: complaint._id,
+        message: "Complaint " + complaint.ticketId + " was reopened by the student.",
+        type: "reopened"
+      });
+    }
     await writeAudit({
       req,
       action: "COMPLAINT_REOPENED",

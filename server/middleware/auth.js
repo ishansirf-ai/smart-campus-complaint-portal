@@ -33,6 +33,13 @@ async function protect(req, res, next) {
       });
     }
 
+    if (Number(decoded.sessionVersion || 0) !== Number(req.user.sessionVersion || 0)) {
+      return res.status(401).json({
+        success: false,
+        message: "Your session has ended. Please log in again."
+      });
+    }
+
     next();
   } catch (error) {
     return res.status(401).json({

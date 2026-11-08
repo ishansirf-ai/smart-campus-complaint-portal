@@ -22,6 +22,18 @@ const categorySchema = new mongoose.Schema(
       maxlength: 300,
       default: ""
     },
+    // Department APIs and assignment endpoints enforce this policy.
+    isAdminOnly: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+    // Retired categories can remain in historic records without appearing in
+    // the new-student submission dropdown.
+    isStudentVisible: {
+      type: Boolean,
+      default: true
+    },
     isActive: {
       type: Boolean,
       default: true

@@ -18,6 +18,7 @@ const {
   startOverdueJob
 } = require("./server/jobs/overdueJob");
 const { ensurePortalData } = require("./server/services/portalBootstrap");
+const { warmEmailTransport } = require("./server/services/emailService");
 
 const {
   notFound,
@@ -26,6 +27,38 @@ const {
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
+const localDevelopmentOrigins = [
+  "http://localhost:5000",
+  "http://127.0.0.1:5000",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173"
+];
+const allowedOrigins = new Set(
+  [
+    ...localDevelopmentOrigins,
+    ...(process.env.CLIENT_URL || "").split(","),
+    // Render supplies its public onrender.com URL at runtime. Including it
+    // means the same deployed service can call its own /api routes securely
+    // without putting a generated public URL in source control.
+    process.env.RENDER_EXTERNAL_URL || ""
+  ]
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
+
+function isLocalDevelopmentOrigin(origin) {
+  if (process.env.NODE_ENV === "production") return false;
+
+  try {
+    const url = new URL(origin);
+    return (
+      url.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
 
 function validateEnvironment() {
   if (!process.env.MONGODB_URI) {
@@ -44,7 +77,17 @@ function validateEnvironment() {
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5000"
+    origin(origin, callback) {
+      // Browser-less requests such as PowerShell testing do not include Origin.
+      if (
+        !origin ||
+        allowedOrigins.has(origin) ||
+        isLocalDevelopmentOrigin(origin)
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error("This browser origin is not allowed."));
+    }
   })
 );
 
@@ -65,17 +108,15 @@ app.use(
   express.static(path.join(__dirname, "assets"))
 );
 
-app.use(
-  "/uploads",
-  express.static(path.join(__dirname, "uploads"))
-);
+// Complaint evidence is deliberately not exposed as a public static folder.
+// Each portal streams it through an authorized complaint route instead.
 
 function sendPortalApp(req, res) {
   res.sendFile(path.join(__dirname, "index.html"));
 }
 
-// Separate bookmarkable entry URLs for each role portal.
-app.get(["/", "/student-login", "/admin-login", "/department-login"], sendPortalApp);
+// Public About page and separate bookmarkable entry URLs for each portal.
+app.get(["/", "/about", "/student-login", "/admin-login", "/department-login"], sendPortalApp);
 
 app.get("/api/health", (req, res) => {
   res.json({
@@ -103,8 +144,11 @@ async function startServer() {
   // Start automatic overdue/SLA feature.
   startOverdueJob();
 
-  app.listen(PORT, () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`Portal running at http://localhost:${PORT}`);
+    // Start preparing Gmail immediately so the first OTP request does not
+    // need to wait for the complete SMTP/TLS connection setup.
+    void warmEmailTransport();
   });
 }
 

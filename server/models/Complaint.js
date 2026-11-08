@@ -78,6 +78,9 @@ const complaintSchema = new mongoose.Schema(
       index: true
     },
     student: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    // `createdAt` comes from Mongoose. This immutable timestamp explicitly
+    // records the server submission instant for reports and migrations.
+    submittedAt: { type: Date, default: Date.now, immutable: true, index: true },
     title: {
       type: String,
       required: [true, "Complaint title is required."],
@@ -111,6 +114,8 @@ const complaintSchema = new mongoose.Schema(
     },
     // Set by backend category routing; students cannot select it themselves.
     department: { type: String, required: true, trim: true, index: true },
+    // Prevents administrator-only categories from leaking to a department.
+    isAdminOnly: { type: Boolean, default: false, index: true },
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     acceptedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     acceptedAt: { type: Date, default: null },
@@ -143,6 +148,7 @@ const complaintSchema = new mongoose.Schema(
 );
 
 complaintSchema.index({ student: 1, createdAt: -1 });
+complaintSchema.index({ student: 1, submittedAt: -1 });
 complaintSchema.index({ department: 1, status: 1, createdAt: -1 });
 complaintSchema.index({ isOverdue: 1, dueDate: 1 });
 

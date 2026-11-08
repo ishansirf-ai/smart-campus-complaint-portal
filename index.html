@@ -24,7 +24,9 @@
   <!-- Top navigation -->
   <header class="site-header">
     <a class="brand" href="#home" data-page="home">
-      <span class="brand-icon" aria-label="BGMIT logo">BGMIT</span>
+      <span class="brand-icon" aria-label="BGMIT college logo">
+        <img src="assets/images/logo.png" alt="BGMIT logo">
+      </span>
       <span>
         <strong>Smart College Complaint Portal</strong>
         <small>Report &nbsp;•&nbsp; Track &nbsp;•&nbsp; Resolve</small>
@@ -37,9 +39,9 @@
 
     <nav class="main-nav" id="mainNav">
       <a class="active" href="#home" data-page="home">Home</a>
-      <a href="#about" data-scroll="about">About College</a>
+      <a href="/about" data-page="about">About College</a>
       <a href="#complaint" data-page="complaint">Complaints</a>
-      <button class="nav-login" data-page="login">Login</button>
+      <button class="nav-login" data-page="portal-choice">Login</button>
     </nav>
   </header>
 
@@ -58,7 +60,7 @@
           </p>
 
           <div class="hero-buttons">
-            <button class="button button-light" data-page="login">
+            <button class="button button-light" data-page="portal-choice">
               <i class="fa-regular fa-user"></i>
               Login
               <i class="fa-solid fa-arrow-right"></i>
@@ -89,7 +91,7 @@
               <h3>Submit Complaint</h3>
               <p>
                 Students can submit a complaint with a title, category,
-                location, priority and detailed description.
+                exact location, optional evidence and a detailed description.
               </p>
             </div>
           </article>
@@ -102,7 +104,7 @@
               <h3>Track Complaint</h3>
               <p>
                 Students can check the current status of their complaint
-                using their private complaint ID.
+                from their private dashboard, with updates and a clear timeline.
               </p>
             </div>
           </article>
@@ -122,6 +124,17 @@
         </div>
       </section>
 
+      <section class="section notice-section" aria-labelledby="noticeHeading">
+        <div class="section-heading notice-heading">
+          <p class="small-title">CAMPUS UPDATES</p>
+          <h2 id="noticeHeading">Notices & Announcements</h2>
+          <p>Important campus information published by the college administration.</p>
+        </div>
+        <div id="publicNotices" class="notice-grid" aria-live="polite">
+          <p class="empty-state">Loading campus notices…</p>
+        </div>
+      </section>
+
       <section class="report-section" id="about">
         <div class="report-intro">
           <div class="report-icon">
@@ -132,9 +145,8 @@
             <h2>What Can You Report?</h2>
             <p>
               Students can report damaged classroom equipment, electrical
-              issues, water leakage, cleanliness, internet problems,
-              laboratory equipment issues, infrastructure problems and other
-              campus-related concerns.
+                issues, water, cleanliness, internet, transport, attendance,
+                food, library, hostel and other campus-related concerns.
             </p>
             <p>
               Each complaint includes a clear description and location so the
@@ -144,14 +156,14 @@
         </div>
 
         <div class="category-list">
-          <div><i class="fa-solid fa-desktop"></i> Classroom Equipment</div>
-          <div><i class="fa-solid fa-wifi"></i> Internet Problems</div>
+          <div><i class="fa-solid fa-desktop"></i> Classroom & IT</div>
+          <div><i class="fa-solid fa-bus"></i> Bus & Transport</div>
           <div><i class="fa-solid fa-bolt"></i> Electrical Issues</div>
-          <div><i class="fa-solid fa-flask"></i> Laboratory Equipment</div>
-          <div><i class="fa-solid fa-droplet"></i> Water Leakage</div>
-          <div><i class="fa-solid fa-building"></i> Infrastructure</div>
-          <div><i class="fa-solid fa-broom-ball"></i> Cleanliness</div>
-          <div><i class="fa-solid fa-ellipsis"></i> Other Issues</div>
+          <div><i class="fa-solid fa-book"></i> Library Services</div>
+          <div><i class="fa-solid fa-droplet"></i> Water & Sanitation</div>
+          <div><i class="fa-solid fa-building"></i> Campus & Infrastructure</div>
+          <div><i class="fa-solid fa-utensils"></i> Food Services</div>
+          <div><i class="fa-solid fa-ellipsis"></i> Other Concerns</div>
         </div>
       </section>
 
@@ -167,25 +179,161 @@
       </section>
     </section>
 
-    <!-- LOGIN PAGE -->
-    <section class="page auth-page" id="loginPage">
-      <div class="auth-card">
+    <!-- ABOUT COLLEGE PAGE -->
+    <section class="page about-page" id="aboutPage">
+      <section class="about-hero">
+        <div class="about-hero-overlay"></div>
+        <div class="about-hero-content">
+          <p class="small-title">BGMIT, MUDHOL</p>
+          <h1>About Biluru Gurubasava Mahaswamiji Institute of Technology</h1>
+          <p>Building capable, ethical and industry-ready professionals through quality technical education.</p>
+          <button class="button button-light" data-page="home"><i class="fa-solid fa-house"></i> Back to Home</button>
+        </div>
+      </section>
+
+      <div class="about-shell">
+        <section class="about-introduction about-section">
+          <div class="about-section-heading">
+            <p class="small-title">ABOUT BGMIT MUDHOL</p>
+            <h2>Learning with purpose. Growing with technology.</h2>
+          </div>
+          <div class="about-intro-grid">
+            <div>
+              <p>Welcome to <strong>Biluru Gurubasava Mahaswamiji Institute of Technology (BGMIT), Mudhol</strong>.</p>
+              <p>Established in 2013 under the prestigious lineage of B.V.V. Sangha, Bagalkot, BGMIT is dedicated to nurturing the next generation of engineers and management professionals.</p>
+              <p>Approved by AICTE, New Delhi, and affiliated with Visvesvaraya Technological University (VTU), Belagavi, the institution combines academic knowledge with practical skills and technological development.</p>
+            </div>
+            <aside class="mission-card">
+              <i class="fa-solid fa-bullseye"></i>
+              <p class="small-title">OUR MISSION</p>
+              <p>To deliver quality technical education that empowers students from diverse backgrounds, fostering innovation, ethical values and technological excellence to serve society.</p>
+            </aside>
+          </div>
+        </section>
+
+        <section class="about-section">
+          <div class="about-section-heading">
+            <p class="small-title">WHY CHOOSE BGMIT?</p>
+            <h2>Education beyond the classroom</h2>
+          </div>
+          <div class="about-feature-grid">
+            <article class="about-feature-card"><span><i class="fa-solid fa-book-open"></i></span><h3>VTU Curriculum</h3><p>Academic programs aligned with university standards and technical education requirements.</p></article>
+            <article class="about-feature-card"><span><i class="fa-solid fa-building-columns"></i></span><h3>Modern Campus</h3><p>A 15-acre campus on Mantur Road with laboratories, library facilities and student accommodation.</p></article>
+            <article class="about-feature-card"><span><i class="fa-solid fa-briefcase"></i></span><h3>Industry Ready</h3><p>A dedicated placement cell supporting soft-skills training, technical workshops and campus recruitment opportunities.</p></article>
+            <article class="about-feature-card"><span><i class="fa-solid fa-people-group"></i></span><h3>Holistic Growth</h3><p>Encouraging extracurricular activities, sports, technical clubs and other campus activities.</p></article>
+          </div>
+        </section>
+
+        <section class="about-section about-details-layout">
+          <div>
+            <div class="about-section-heading">
+              <p class="small-title">KEY DETAILS</p>
+              <h2>BGMIT at a glance</h2>
+            </div>
+            <dl class="college-details-list">
+              <div><dt>Established</dt><dd>2013</dd></div>
+              <div><dt>Management</dt><dd>B.V.V. Sangha, Bagalkot</dd></div>
+              <div><dt>Affiliation</dt><dd>Visvesvaraya Technological University (VTU), Belagavi</dd></div>
+              <div><dt>Approval</dt><dd>AICTE, New Delhi</dd></div>
+              <div><dt>Campus</dt><dd>15-acre campus</dd></div>
+              <div><dt>Location</dt><dd>Mantur Road, Mudhol, Bagalkot District, Karnataka</dd></div>
+            </dl>
+            <a class="official-site-link" href="http://bgmitm.ac.in/" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Visit the official BGMIT website</a>
+          </div>
+          <img class="about-campus-image" src="assets/images/campus.jpg" alt="BGMIT Mudhol campus building">
+        </section>
+
+        <section class="about-section academic-section">
+          <div class="about-section-heading">
+            <p class="small-title">ACADEMIC PROGRAMS</p>
+            <h2>Programmes for future professionals</h2>
+          </div>
+          <div class="program-grid">
+            <article class="program-card"><i class="fa-solid fa-graduation-cap"></i><h3>Undergraduate — B.E.</h3><ul><li>Computer Science and Engineering (CSE)</li><li>Artificial Intelligence and Machine Learning (AI &amp; ML)</li><li>Electronics and Communication Engineering (ECE)</li><li>Civil Engineering</li><li>Mechanical Engineering</li></ul><p>Admissions through KCET or COMEDK UGET, subject to applicable admission rules.</p></article>
+            <article class="program-card postgraduate-card"><i class="fa-solid fa-user-tie"></i><h3>Postgraduate</h3><ul><li>Master of Business Administration (MBA)</li></ul><p>MBA admissions through Karnataka PGCET, subject to applicable admission rules.</p></article>
+          </div>
+        </section>
+
+        <section class="about-section">
+          <div class="about-section-heading">
+            <p class="small-title">CAMPUS FACILITIES</p>
+            <h2>Designed for campus life</h2>
+          </div>
+          <div class="facility-grid">
+            <article><i class="fa-solid fa-bed"></i><span>Separate Boys and Girls Hostels</span></article>
+            <article><i class="fa-solid fa-book"></i><span>Central and Digital Library</span></article>
+            <article><i class="fa-solid fa-flask"></i><span>Modern Laboratories</span></article>
+            <article><i class="fa-solid fa-dumbbell"></i><span>Sports and Gymnasium</span></article>
+            <article><i class="fa-solid fa-utensils"></i><span>Canteen</span></article>
+            <article><i class="fa-solid fa-bus"></i><span>Transportation Facilities</span></article>
+            <article><i class="fa-solid fa-wifi"></i><span>Campus Internet Facilities</span></article>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- PORTAL SELECTION PAGE -->
+    <section class="page auth-page" id="portal-choicePage">
+      <div class="portal-choice-card">
         <button class="back-button" data-page="home">
           <i class="fa-solid fa-arrow-left"></i> Back to Home
         </button>
 
-        <div class="auth-logo">
-          <i class="fa-solid fa-building-columns"></i>
+        <div class="auth-logo auth-logo-image">
+          <img src="assets/images/logo.png" alt="BGMIT logo">
         </div>
 
-        <h1>Welcome Back</h1>
-        <p>Log in to report, track and manage campus complaints.</p>
+        <p class="small-title">BGMIT SMART COLLEGE COMPLAINT PORTAL</p>
+        <h1>Choose your portal</h1>
+        <p class="portal-choice-intro">
+          Select the account type you want to sign in with.
+        </p>
 
-        <div class="login-tabs">
-          <button class="login-tab active" data-role="student">Student</button>
-          <button class="login-tab" data-role="admin">Admin</button>
-          <button class="login-tab" data-role="department">Department</button>
+        <div class="portal-choice-grid">
+          <button class="portal-choice student-choice" data-portal-login="student">
+            <span class="portal-choice-icon"><i class="fa-solid fa-user-graduate"></i></span>
+            <span class="portal-choice-copy">
+              <strong>Student Portal</strong>
+              <small>Submit, track and review your own complaints.</small>
+            </span>
+            <i class="fa-solid fa-arrow-right portal-choice-arrow"></i>
+          </button>
+
+          <button class="portal-choice admin-choice" data-portal-login="admin">
+            <span class="portal-choice-icon"><i class="fa-solid fa-user-shield"></i></span>
+            <span class="portal-choice-copy">
+              <strong>Administrator Portal</strong>
+              <small>Manage users, complaints, departments and reports.</small>
+            </span>
+            <i class="fa-solid fa-arrow-right portal-choice-arrow"></i>
+          </button>
+
+          <button class="portal-choice department-choice" data-portal-login="department">
+            <span class="portal-choice-icon"><i class="fa-solid fa-building"></i></span>
+            <span class="portal-choice-copy">
+              <strong>Department Portal</strong>
+              <small>CSE, AIML, CIVIL, EC and MECHANICAL staff.</small>
+            </span>
+            <i class="fa-solid fa-arrow-right portal-choice-arrow"></i>
+          </button>
         </div>
+      </div>
+    </section>
+
+    <!-- LOGIN PAGE -->
+    <section class="page auth-page" id="loginPage">
+      <div class="auth-card">
+        <button class="back-button" data-page="portal-choice">
+          <i class="fa-solid fa-arrow-left"></i> Choose another portal
+        </button>
+
+        <div class="auth-logo auth-logo-image">
+          <img src="assets/images/logo.png" alt="BGMIT logo">
+        </div>
+
+        <p class="small-title" id="loginPortalLabel">BGMIT STUDENT PORTAL</p>
+        <h1 id="loginTitle">Student Complaint Portal</h1>
+        <p id="loginDescription">Sign in to report, track and manage your own campus complaints.</p>
 
         <form id="loginForm">
           <label for="loginEmail">Email Address</label>
@@ -193,7 +341,6 @@
 
           <label for="loginPassword">Password</label>
           <input id="loginPassword" type="password" placeholder="Enter password" required>
-          <button type="button" class="password-toggle" data-password-target="loginPassword" aria-label="Show password"><i class="fa-regular fa-eye"></i></button>
 
           <button class="button button-primary full-button" type="submit">
             Login <i class="fa-solid fa-arrow-right"></i>
@@ -209,26 +356,23 @@
         <div class="sidebar-title">Student Panel</div>
 
         <button class="side-link active" data-dashboard="overview">
-          <i class="fa-solid fa-house"></i> Dashboard
-        </button>
-        <button class="side-link" data-page="complaint">
-          <i class="fa-solid fa-circle-plus"></i> New Complaint
+          <i class="fa-solid fa-house-chimney"></i> Dashboard
         </button>
         <button class="side-link" data-dashboard="complaints">
-          <i class="fa-solid fa-list-check"></i> My Complaints
+          <i class="fa-solid fa-rectangle-list"></i> My Complaints
+        </button>
+        <button class="side-link" data-page="complaint">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Submit Complaint
         </button>
         <button class="side-link" data-dashboard="notifications">
-          <i class="fa-regular fa-bell"></i> Notifications
+          <i class="fa-solid fa-bell"></i> Notifications
           <span class="notification-count">2</span>
         </button>
-        <button class="side-link" data-page="track">
-          <i class="fa-solid fa-magnifying-glass"></i> Search / Track
-        </button>
-        <button class="side-link" data-dashboard="feedback">
-          <i class="fa-regular fa-star"></i> Feedback
+        <button class="side-link" data-profile>
+          <i class="fa-solid fa-id-badge"></i> Profile
         </button>
         <button class="side-link logout-button" data-page="home">
-          <i class="fa-solid fa-right-from-bracket"></i> Logout
+          <i class="fa-solid fa-arrow-right-from-bracket"></i> Logout
         </button>
       </aside>
 
@@ -245,38 +389,75 @@
           </button>
         </div>
 
-        <div class="stat-grid">
+        <div class="stat-grid student-stat-grid">
           <article class="stat-card">
             <div class="round-icon blue-icon"><i class="fa-solid fa-file-lines"></i></div>
             <p>Total Complaints</p>
-            <strong id="totalCount">5</strong>
+            <strong id="totalCount">0</strong>
           </article>
 
           <article class="stat-card">
-            <div class="round-icon yellow-icon"><i class="fa-regular fa-clock"></i></div>
+            <div class="round-icon yellow-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+            <p>Pending</p>
+            <strong id="pendingCount">0</strong>
+          </article>
+
+          <article class="stat-card">
+            <div class="round-icon blue-icon"><i class="fa-solid fa-person-digging"></i></div>
             <p>In Progress</p>
-            <strong id="progressCount">2</strong>
+            <strong id="progressCount">0</strong>
           </article>
 
           <article class="stat-card">
             <div class="round-icon green-icon"><i class="fa-solid fa-circle-check"></i></div>
             <p>Resolved</p>
-            <strong id="resolvedCount">2</strong>
+            <strong id="resolvedCount">0</strong>
           </article>
 
           <article class="stat-card">
-            <div class="round-icon red-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
-            <p>Overdue</p>
-            <strong id="overdueCount">1</strong>
+            <div class="round-icon red-icon"><i class="fa-solid fa-circle-xmark"></i></div>
+            <p>Rejected</p>
+            <strong id="rejectedCount">0</strong>
+          </article>
+
+          <article class="stat-card">
+            <div class="round-icon purple-icon"><i class="fa-solid fa-calendar-check"></i></div>
+            <p>Monthly Remaining</p>
+            <strong id="monthlyRemainingCount">0</strong>
           </article>
         </div>
 
+        <section class="monthly-limit-card" aria-live="polite">
+          <div class="monthly-limit-icon"><i class="fa-solid fa-shield-heart"></i></div>
+          <div>
+            <p class="small-title">MONTHLY COMPLAINT PLAN</p>
+            <h2><span id="monthlySubmittedCount">0</span> of <span id="monthlyLimitCount">0</span> complaints submitted this month</h2>
+            <p id="monthlyLimitMessage">Your monthly complaint balance will appear here.</p>
+          </div>
+          <button class="button button-light" data-page="complaint"><i class="fa-solid fa-plus"></i> Submit</button>
+        </section>
+
         <section class="recent-card">
           <div class="card-heading">
-            <h2>Recent Complaints</h2>
+            <h2>My Complaints</h2>
             <button class="text-button" data-dashboard="complaints">
-              View All <i class="fa-solid fa-arrow-right"></i>
+              View History <i class="fa-solid fa-arrow-right"></i>
             </button>
+          </div>
+
+          <div class="student-history-tools">
+            <label class="sr-only" for="studentComplaintSearch">Search complaints</label>
+            <input id="studentComplaintSearch" type="search" placeholder="Search ID, title, category or location">
+            <label class="sr-only" for="studentComplaintStatus">Filter complaints by status</label>
+            <select id="studentComplaintStatus">
+              <option value="">All statuses</option>
+              <option value="Submitted">Pending</option>
+              <option value="Assigned">Assigned</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Resolved">Resolved</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+            <button class="button button-light" id="applyStudentComplaintFilters" type="button"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
           </div>
 
           <div class="table-wrap">
@@ -287,45 +468,14 @@
                   <th>Category</th>
                   <th>Location</th>
                   <th>Status</th>
-                  <th>Date</th>
+                  <th>Submitted</th>
+                  <th>Due Date</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody id="complaintTable">
                 <tr>
-                  <td>CMP001</td>
-                  <td>Electrical</td>
-                  <td>Block A - Room 203</td>
-                  <td><span class="status progress">In Progress</span></td>
-                  <td>10-10-2026</td>
-                </tr>
-                <tr>
-                  <td>CMP002</td>
-                  <td>Water Leakage</td>
-                  <td>Block B - Washroom</td>
-                  <td><span class="status assigned">Assigned</span></td>
-                  <td>08-10-2026</td>
-                </tr>
-                <tr>
-                  <td>CMP003</td>
-                  <td>Classroom</td>
-                  <td>Block C - Room 102</td>
-                  <td><span class="status resolved">Resolved</span></td>
-                  <td>06-10-2026</td>
-                </tr>
-                <tr>
-                  <td>CMP004</td>
-                  <td>Cleaning</td>
-                  <td>Library</td>
-                  <td><span class="status overdue">Overdue</span></td>
-                  <td>01-10-2026</td>
-                </tr>
-                <tr>
-                  <td>CMP005</td>
-                  <td>Internet</td>
-                  <td>Computer Lab</td>
-                  <td><span class="status resolved">Resolved</span></td>
-                  <td>28-09-2026</td>
+                  <td colspan="7" class="empty-state">Loading your private complaints…</td>
                 </tr>
               </tbody>
             </table>
@@ -380,22 +530,70 @@
               <input id="location" type="text" placeholder="Example: Block A - Room 203" required>
             </div>
 
+          </div>
+
+          <div class="input-grid location-details">
             <div>
-              <label for="priority">Priority</label>
-              <select id="priority" required>
-                <option>Normal</option>
-                <option>Low</option>
-                <option>High</option>
-                <option>Emergency</option>
-              </select>
+              <label for="block">Block / Building (optional)</label>
+              <input id="block" type="text" placeholder="Example: Block A">
+            </div>
+            <div>
+              <label for="room">Room / Lab / Area (optional)</label>
+              <input id="room" type="text" placeholder="Example: Room 203">
+            </div>
+          </div>
+
+          <div id="busDetails" class="bus-details hidden">
+            <div class="form-heading compact-heading">
+              <p class="small-title">TRANSPORT DETAILS</p>
+              <p>Bus complaints are securely routed to the administrator.</p>
+            </div>
+            <div class="input-grid">
+              <div>
+                <label for="busProblemType">Transport problem type</label>
+                <select id="busProblemType">
+                  <option value="">Select problem type</option>
+                  <option>Bus late / missed</option>
+                  <option>Driver or conductor issue</option>
+                  <option>Safety concern</option>
+                  <option>Route or stop issue</option>
+                  <option>Bus condition / maintenance</option>
+                  <option>Other transport issue</option>
+                </select>
+              </div>
+              <div>
+                <label for="busNumber">Bus number (optional)</label>
+                <input id="busNumber" type="text" placeholder="Example: KA-XX-1234">
+              </div>
+              <div>
+                <label for="busRoute">Route (optional)</label>
+                <input id="busRoute" type="text" placeholder="Example: Mudhol - BGMIT">
+              </div>
+              <div>
+                <label for="busStop">Boarding stop (optional)</label>
+                <input id="busStop" type="text" placeholder="Example: Mudhol Bus Stand">
+              </div>
+              <div>
+                <label for="travelDate">Travel date (optional)</label>
+                <input id="travelDate" type="date">
+              </div>
+              <div>
+                <label for="travelTime">Approximate time (optional)</label>
+                <input id="travelTime" type="time">
+              </div>
             </div>
           </div>
 
           <label for="description">Description</label>
           <textarea id="description" rows="6" placeholder="Explain the problem clearly..." required></textarea>
 
-          <label for="photo">Upload Photo (optional)</label>
-          <input id="photo" type="file" accept="image/*">
+          <label for="photo">Issue photo (optional)</label>
+          <input id="photo" type="file" accept="image/jpeg,image/png,image/webp">
+
+          <label for="attachments">Extra attachments (up to 3 images or PDFs, optional)</label>
+          <input id="attachments" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf">
+
+          <div id="similarComplaintPanel" class="similar-complaint-panel hidden" aria-live="polite"></div>
 
           <button class="button button-primary full-button" type="submit">
             Submit Complaint <i class="fa-solid fa-paper-plane"></i>

@@ -6,12 +6,29 @@ const multer = require("multer");
 const uploadDirectory = path.join(__dirname, "../../uploads");
 fs.mkdirSync(uploadDirectory, { recursive: true });
 
+const extensionByMime = Object.freeze({
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "application/pdf": ".pdf"
+});
+
+const allowedExtensionsByMime = Object.freeze({
+  "image/jpeg": [".jpg", ".jpeg"],
+  "image/png": [".png"],
+  "image/webp": [".webp"],
+  "application/pdf": [".pdf"]
+});
+
 const storage = multer.diskStorage({
   destination: (req, file, done) => {
     done(null, uploadDirectory);
   },
   filename: (req, file, done) => {
-    const extension = path.extname(file.originalname).toLowerCase();
+    // Do not preserve an arbitrary browser-provided extension in a path that
+    // is later served by the application. The filter below has already
+    // matched this to an allow-listed MIME type.
+    const extension = extensionByMime[file.mimetype] || ".bin";
     const safeFilename =
       Date.now() +
       "-" +
@@ -35,7 +52,11 @@ const allowedImageTypes = [
 ];
 
 function allowAttachment(req, file, done) {
-  if (!allowedAttachmentTypes.includes(file.mimetype)) {
+  const extension = path.extname(file.originalname).toLowerCase();
+  if (
+    !allowedAttachmentTypes.includes(file.mimetype) ||
+    !allowedExtensionsByMime[file.mimetype]?.includes(extension)
+  ) {
     return done(
       new Error("Upload only JPG, PNG, WEBP, or PDF attachment files.")
     );
@@ -44,7 +65,11 @@ function allowAttachment(req, file, done) {
 }
 
 function allowImage(req, file, done) {
-  if (!allowedImageTypes.includes(file.mimetype)) {
+  const extension = path.extname(file.originalname).toLowerCase();
+  if (
+    !allowedImageTypes.includes(file.mimetype) ||
+    !allowedExtensionsByMime[file.mimetype]?.includes(extension)
+  ) {
     return done(
       new Error("Upload only JPG, PNG, or WEBP image files.")
     );
