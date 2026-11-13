@@ -23,6 +23,16 @@ services:
         sync: false
       - key: GMAIL_APP_PASSWORD
         sync: false
+      # Render Free blocks SMTP ports. The portal uses this secure HTTPS email
+      # API when the following value is set in the Render Environment page.
+      - key: EMAIL_PROVIDER
+        value: brevo
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: BREVO_SENDER_NAME
+        value: BGMIT Mudhol
       - key: MAIL_FROM_NAME
         value: BGMIT Mudhol - Smart College Complaint Portal
       - key: SMTP_HOST

@@ -14,6 +14,77 @@ let cachedTransporter = null;
 let verificationPromise = null;
 let verifiedUntil = 0;
 const VERIFY_CACHE_MS = 10 * 60 * 1000;
+const BREVO_API_BASE = "https://api.brevo.com/v3";
+
+// Render's Free web services block outgoing SMTP ports. When a BREVO_API_KEY
+// exists, use Brevo's HTTPS API instead. Local development can keep using
+// Gmail SMTP exactly as before.
+function getEmailProvider() {
+  const requestedProvider = String(process.env.EMAIL_PROVIDER || "")
+    .trim()
+    .toLowerCase();
+
+  if (requestedProvider === "brevo") return "brevo";
+  if (requestedProvider === "smtp" || requestedProvider === "gmail") {
+    return "smtp";
+  }
+
+  return process.env.BREVO_API_KEY ? "brevo" : "smtp";
+}
+
+function serviceError(message) {
+  const error = new Error(message);
+  error.statusCode = 503;
+  return error;
+}
+
+function getBrevoConfig() {
+  const apiKey = String(process.env.BREVO_API_KEY || "").trim();
+  const senderEmail = String(
+    process.env.BREVO_SENDER_EMAIL || process.env.GMAIL_USER || ""
+  ).trim();
+  const senderName = String(
+    process.env.BREVO_SENDER_NAME ||
+      process.env.MAIL_FROM_NAME ||
+      "BGMIT Mudhol - Smart College Complaint Portal"
+  ).trim();
+
+  if (!apiKey || !senderEmail) {
+    throw serviceError(
+      "Brevo email is not configured. Add BREVO_API_KEY and BREVO_SENDER_EMAIL."
+    );
+  }
+
+  return { apiKey, senderEmail, senderName };
+}
+
+async function fetchBrevo(path, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    return await fetch(`${BREVO_API_BASE}${path}`, {
+      ...options,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw serviceError("Brevo email API connection timed out.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function getBrevoErrorMessage(response) {
+  const body = await response.json().catch(() => ({}));
+  const message = String(body.message || body.code || response.statusText || "")
+    .replace(/[\r\n]+/g, " ")
+    .slice(0, 180);
+
+  return message || `HTTP ${response.status}`;
+}
 
 function smtpIsConfigured() {
   const gmailUser = String(
@@ -84,6 +155,39 @@ function getTransporter() {
 }
 
 async function verifyEmailTransport() {
+  if (getEmailProvider() === "brevo") {
+    const config = getBrevoConfig();
+    if (verifiedUntil > Date.now()) return config;
+
+    if (!verificationPromise) {
+      verificationPromise = fetchBrevo("/account", {
+        headers: {
+          accept: "application/json",
+          "api-key": config.apiKey
+        }
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            throw serviceError(
+              `Brevo email API verification failed: ${await getBrevoErrorMessage(response)}`
+            );
+          }
+
+          verifiedUntil = Date.now() + VERIFY_CACHE_MS;
+          return config;
+        })
+        .catch((error) => {
+          verifiedUntil = 0;
+          throw error;
+        })
+        .finally(() => {
+          verificationPromise = null;
+        });
+    }
+
+    return verificationPromise;
+  }
+
   const transporter = getTransporter();
   if (verifiedUntil > Date.now()) return transporter;
 
@@ -114,23 +218,29 @@ async function verifyEmailTransport() {
 // portal from starting, but the first real OTP request will still return a
 // clear error if Gmail cannot accept it.
 async function warmEmailTransport() {
-  if (!smtpIsConfigured()) {
-    console.warn("Gmail SMTP is not configured; password-reset emails are unavailable.");
-    return false;
-  }
-
   try {
+    if (getEmailProvider() === "smtp" && !smtpIsConfigured()) {
+      console.warn(
+        "Gmail SMTP is not configured; password-reset emails are unavailable."
+      );
+      return false;
+    }
+
     await verifyEmailTransport();
-    console.log("Gmail SMTP is ready for password-reset emails.");
+    console.log(
+      getEmailProvider() === "brevo"
+        ? "Brevo HTTPS email API is ready for password-reset emails."
+        : "Gmail SMTP is ready for password-reset emails."
+    );
     return true;
   } catch (error) {
-    console.error(`Gmail SMTP warm-up failed: ${error.message}`);
+    const provider = getEmailProvider() === "brevo" ? "Brevo email API" : "Gmail SMTP";
+    console.error(`${provider} warm-up failed: ${error.message}`);
     return false;
   }
 }
 
 async function sendPasswordResetOtp({ to, fullName, otp, portal }) {
-  const transporter = await verifyEmailTransport();
   const portalNames = {
     student: "Student Complaint Portal",
     admin: "Administrator Portal",
@@ -167,6 +277,50 @@ async function sendPasswordResetOtp({ to, fullName, otp, portal }) {
     '</div>' +
     '<div style="background:#f4f8fb;border-top:1px solid #dfeaf3;padding:18px 32px;color:#647b90;font-size:12px;text-align:center;">BGMIT Smart College Complaint Portal<br>Build for a better campus</div>' +
     '</div></div>';
+
+  if (getEmailProvider() === "brevo") {
+    const config = await verifyEmailTransport();
+    const response = await fetchBrevo("/smtp/email", {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+        "api-key": config.apiKey
+      },
+      body: JSON.stringify({
+        sender: {
+          email: config.senderEmail,
+          name: config.senderName
+        },
+        replyTo: {
+          email: config.senderEmail,
+          name: config.senderName
+        },
+        to: [
+          {
+            email: to,
+            name: fullName || "BGMIT Portal User"
+          }
+        ],
+        subject: "BGMIT Mudhol - Password Reset Verification Code",
+        textContent: plainText,
+        htmlContent: html,
+        tags: ["password-reset", "bgmit-portal"]
+      })
+    });
+
+    if (!response.ok) {
+      throw serviceError(
+        `Brevo email API rejected the password reset message: ${await getBrevoErrorMessage(response)}`
+      );
+    }
+
+    verifiedUntil = Date.now() + VERIFY_CACHE_MS;
+    console.log("Password reset email accepted by Brevo HTTPS email API.");
+    return;
+  }
+
+  const transporter = await verifyEmailTransport();
 
   const delivery = await transporter.sendMail({
     from: process.env.SMTP_FROM || `${process.env.MAIL_FROM_NAME || "BGMIT Mudhol - Biluru Gurubasava Mahaswamiji Institute of Technology"} <${process.env.GMAIL_USER || process.env.SMTP_USER}>`,

@@ -39,15 +39,15 @@ Before pushing, run `git status` and ensure that `.env` is **not** listed.
 2. Click **New** → **Blueprint**.
 3. Select the `smart-college-portal` repository.
 4. Render reads `render.yaml`. Confirm the service name and select **Apply**.
-5. When Render asks for values, enter only these private values from your
-   local `.env` file:
+5. In Render's **Environment** page, enter these private values:
 
    - `MONGODB_URI`
-   - `GMAIL_USER`
-   - `GMAIL_APP_PASSWORD`
+   - `BREVO_API_KEY`
+   - `BREVO_SENDER_EMAIL`
 
-   Render generates `JWT_SECRET` automatically. Never copy your `.env` into
-   GitHub, `render.yaml`, or a browser chat.
+   `BREVO_SENDER_EMAIL` must be an email sender verified in Brevo. Render
+   generates `JWT_SECRET` automatically. Never copy your `.env` into GitHub,
+   `render.yaml`, or a browser chat.
 6. Click **Create Blueprint Instance** and wait for the deploy to finish.
 7. Open the URL shown by Render, for example:
    `https://bgmit-smart-college-portal.onrender.com`
@@ -83,6 +83,12 @@ The health URL must return `success: true`.
 Render's Free web service can sleep after 15 minutes of no activity. The first
 visitor after sleep can wait about one minute while it starts. Free services
 also lose files saved in the local `uploads` folder after a restart or deploy.
+
+Render Free blocks outgoing SMTP ports, including Gmail ports 465 and 587.
+This project uses Brevo's HTTPS email API for password-reset emails in
+production. Create a Brevo account, verify the sender email, create an API key,
+then add `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` in Render. Keep Gmail SMTP
+variables only for local development or a paid Render service.
 
 For a permanent college portal with permanent uploaded complaint photos, use a
 paid Render service with a persistent disk or move uploads to cloud storage
