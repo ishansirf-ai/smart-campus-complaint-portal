@@ -23,6 +23,14 @@ services:
         sync: false
       - key: GMAIL_APP_PASSWORD
         sync: false
+      - key: EMAIL_PROVIDER
+        value: gmail_api
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REFRESH_TOKEN
+        sync: false
       - key: MAIL_FROM_NAME
         value: BGMIT Mudhol - Smart College Complaint Portal
       - key: SMTP_HOST

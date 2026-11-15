@@ -9,7 +9,8 @@
     "seed": "node server/scripts/seedAdmin.js",
     "seed:departments": "node server/scripts/seedDepartments.js",
     "seed:all": "npm run seed && npm run seed:departments",
-    "verify:email": "node server/scripts/verifyEmail.js"
+    "verify:email": "node server/scripts/verifyEmail.js",
+    "gmail:authorize": "node server/scripts/getGmailRefreshToken.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

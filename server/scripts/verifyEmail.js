@@ -5,14 +5,19 @@ require("dotenv").config({
 });
 
 const { verifyEmailTransport } = require("../services/emailService");
+const provider =
+  String(process.env.EMAIL_PROVIDER || "smtp").trim().toLowerCase() ===
+  "gmail_api"
+    ? "Gmail API"
+    : "Gmail SMTP";
 
 verifyEmailTransport()
   .then(() => {
-    console.log("Gmail SMTP connection verified successfully.");
+    console.log(`${provider} connection verified successfully.`);
   })
   .catch((error) => {
     console.error(
-      "Gmail SMTP verification failed:",
+      `${provider} verification failed:`,
       error.code || error.name,
       "-",
       error.message
