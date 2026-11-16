@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     rel="stylesheet"
   >
   <link
@@ -20,7 +20,7 @@
   <script src="assets/js/app.js" defer></script>
 </head>
 
-<body>
+<body class="portal-app">
   <!-- Top navigation -->
   <header class="site-header">
     <a class="brand" href="#home" data-page="home">
@@ -43,6 +43,7 @@
       <a href="#complaint" data-page="complaint">Complaints</a>
       <button class="nav-login" data-page="portal-choice">Login</button>
     </nav>
+
   </header>
 
   <main>
@@ -53,6 +54,7 @@
 
         <div class="hero-content">
           <p class="eyebrow">BGMIT, MUDHOL <span></span></p>
+          <div class="hero-chip"><i class="fa-solid fa-shield-heart"></i> A clearer way to improve campus life</div>
           <h1>Smart College<br>Complaint Portal</h1>
           <p class="hero-text">
             A simple digital platform for students to report college-related
@@ -72,7 +74,20 @@
               <i class="fa-solid fa-arrow-right"></i>
             </button>
           </div>
+
+          <div class="hero-trust-row" aria-label="Portal highlights">
+            <span><i class="fa-solid fa-bolt"></i> Quick updates</span>
+            <span><i class="fa-solid fa-lock"></i> Private &amp; secure</span>
+            <span><i class="fa-solid fa-route"></i> Smart routing</span>
+          </div>
         </div>
+
+        <aside class="hero-snapshot" aria-label="Complaint portal preview">
+          <div class="snapshot-topline"><span class="snapshot-pulse"></span> Live campus care</div>
+          <div class="snapshot-title"><span class="snapshot-icon"><i class="fa-solid fa-layer-group"></i></span><div><strong>Every concern, visible.</strong><small>Submit · Track · Resolve</small></div></div>
+          <div class="snapshot-progress"><span><i class="fa-solid fa-circle-check"></i> Submitted</span><span><i class="fa-solid fa-arrow-right"></i></span><span><i class="fa-solid fa-screwdriver-wrench"></i> In progress</span></div>
+          <div class="snapshot-footer"><span>Designed for BGMIT students</span><i class="fa-solid fa-arrow-up-right-from-square"></i></div>
+        </aside>
       </section>
 
       <section class="section management-section">
@@ -121,6 +136,32 @@
               </p>
             </div>
           </article>
+        </div>
+      </section>
+
+      <section class="section faq-section" aria-labelledby="faqHeading">
+        <div class="section-heading">
+          <p class="small-title">NEED HELP?</p>
+          <h2 id="faqHeading">Questions, answered clearly.</h2>
+          <p>Everything students need to know before submitting a campus concern.</p>
+        </div>
+        <div class="faq-grid">
+          <details class="faq-item">
+            <summary><span>How does complaint tracking work?</span><i class="fa-solid fa-plus"></i></summary>
+            <p>After submission, your private dashboard shows the current status, assigned department, due date, remarks and complete activity timeline.</p>
+          </details>
+          <details class="faq-item">
+            <summary><span>Who can view my complaint?</span><i class="fa-solid fa-plus"></i></summary>
+            <p>Only you, authorized administrators and the department responsible for the routed complaint can access the details needed to resolve it.</p>
+          </details>
+          <details class="faq-item">
+            <summary><span>Can I attach a photo?</span><i class="fa-solid fa-plus"></i></summary>
+            <p>Yes. You can include an issue photo and up to three supporting images or PDF files when you submit a complaint.</p>
+          </details>
+          <details class="faq-item">
+            <summary><span>What if the issue is not resolved?</span><i class="fa-solid fa-plus"></i></summary>
+            <p>Use the complaint detail view to reopen an unresolved complaint after it is marked resolved, then explain what still needs attention.</p>
+          </details>
         </div>
       </section>
 
@@ -505,6 +546,10 @@
         </div>
 
         <form class="complaint-form" id="complaintForm">
+          <div class="draft-status" id="draftStatus" role="status" aria-live="polite">
+            <span><i class="fa-regular fa-floppy-disk"></i> Drafts are saved privately on this device.</span>
+            <button class="text-button" id="clearComplaintDraft" type="button">Clear draft</button>
+          </div>
           <div class="input-grid">
             <div>
               <label for="title">Complaint Title</label>

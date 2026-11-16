@@ -10,6 +10,11 @@ const API_BASE =
 
 const TOKEN_KEY = "portal_token";
 const USER_KEY = "portal_user";
+const THEME_KEY = "portal_theme";
+const COMPLAINT_DRAFT_PREFIX = "portal_complaint_draft_";
+// This matches the actual version in package.json. The project has no build
+// number or release-date metadata, so Settings deliberately says so.
+const APP_VERSION = "1.0.0";
 
 let currentUser = getSavedUser();
 let loginRole = ({
@@ -90,6 +95,274 @@ function showToast(message, type = "success") {
   window.toastTimer = setTimeout(() => {
     toast.className = "toast";
   }, 4000);
+}
+
+// Keep tables visually stable while the existing protected APIs load. This is
+// presentation-only: it never changes which data a role may receive.
+function renderTableSkeleton(selector, columns = 6, rows = 4) {
+  const table = $(selector);
+  if (!table) return;
+
+  table.setAttribute("aria-busy", "true");
+  table.innerHTML = Array.from({ length: rows }, () => `
+    <tr class="skeleton-row">
+      <td colspan="${columns}"><span class="skeleton-line"></span></td>
+    </tr>
+  `).join("");
+}
+
+function finishTableLoading(selector) {
+  $(selector)?.removeAttribute("aria-busy");
+}
+
+// Respect a visitor's accessibility preference while keeping the dashboard
+// values pleasantly responsive when new, real API data arrives.
+function prefersReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+}
+
+function animateMetricValue(element, value, options = {}) {
+  if (!element) return;
+
+  const target = Number(value) || 0;
+  const suffix = options.suffix || "";
+  const decimals = Number.isInteger(target) ? 0 : 1;
+  const formatter = new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: 0
+  });
+
+  window.cancelAnimationFrame(Number(element.dataset.metricAnimationFrame));
+
+  if (prefersReducedMotion()) {
+    element.textContent = `${formatter.format(target)}${suffix}`;
+    element.dataset.metricValue = String(target);
+    return;
+  }
+
+  const previous = Number(element.dataset.metricValue || 0);
+  const start = Number.isFinite(previous) ? previous : 0;
+  const startedAt = performance.now();
+  const duration = 520;
+
+  const render = (now) => {
+    const progress = Math.min((now - startedAt) / duration, 1);
+    // Ease-out keeps the change informative rather than distracting.
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = start + (target - start) * eased;
+    element.textContent = `${formatter.format(current)}${suffix}`;
+
+    if (progress < 1) {
+      element.dataset.metricAnimationFrame = String(window.requestAnimationFrame(render));
+      return;
+    }
+
+    element.dataset.metricValue = String(target);
+    delete element.dataset.metricAnimationFrame;
+  };
+
+  element.dataset.metricAnimationFrame = String(window.requestAnimationFrame(render));
+}
+
+let portalRevealObserver;
+
+function revealPremiumInterface(root = document) {
+  if (!root || prefersReducedMotion() || !("IntersectionObserver" in window)) return;
+
+  document.documentElement.classList.add("motion-ready");
+
+  if (!portalRevealObserver) {
+    portalRevealObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add("is-visible");
+          portalRevealObserver.unobserve(entry.target);
+        });
+      },
+      { rootMargin: "0px 0px -28px", threshold: 0.06 }
+    );
+  }
+
+  const selector = [
+    ".management-card",
+    ".notice-card",
+    ".stat-card",
+    ".admin-stat",
+    ".recent-card",
+    ".monthly-limit-card",
+    ".feature-grid article",
+    ".admin-panel",
+    ".chart-card",
+    ".department-panel",
+    ".about-feature-card",
+    ".program-card",
+    ".facility-grid article",
+    ".form-container",
+    ".auth-card",
+    ".track-box",
+    ".portal-choice-card"
+  ].join(",");
+
+  root.querySelectorAll(selector).forEach((element, index) => {
+    if (element.dataset.portalRevealBound) return;
+    element.dataset.portalRevealBound = "true";
+    element.style.setProperty("--portal-reveal-delay", `${Math.min(index * 38, 260)}ms`);
+    element.classList.add("portal-reveal");
+    portalRevealObserver.observe(element);
+  });
+}
+
+function applyTheme(theme) {
+  const preference = ["light", "dark", "system"].includes(theme) ? theme : "light";
+  const systemTheme = window.matchMedia?.("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+  const nextTheme = preference === "system" ? systemTheme : preference;
+  document.documentElement.dataset.theme = nextTheme;
+  localStorage.setItem(THEME_KEY, preference);
+
+  document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+    const selected = button.dataset.themeChoice === preference;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+}
+
+function initialiseTheme() {
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  applyTheme(savedTheme || "system");
+}
+
+function complaintDraftKey() {
+  if (!currentUser || currentUser.role !== "student") return "";
+  // Per-account key prevents drafts from appearing when a different student
+  // signs in on the same browser. Files are never saved in localStorage.
+  return `${COMPLAINT_DRAFT_PREFIX}${currentUser.id || currentUser.email}`;
+}
+
+function complaintDraftFields() {
+  return [
+    "title", "category", "location", "block", "room", "description",
+    "busProblemType", "busNumber", "busRoute", "busStop", "travelDate", "travelTime"
+  ];
+}
+
+function updateDraftStatus(message) {
+  const status = $("#draftStatus span");
+  if (status) status.innerHTML = `<i class="fa-regular fa-floppy-disk"></i> ${escapeHtml(message)}`;
+}
+
+function saveComplaintDraft() {
+  const key = complaintDraftKey();
+  const form = $("#complaintForm");
+  if (!key || !form) return;
+
+  const draft = Object.fromEntries(
+    complaintDraftFields().map((id) => [id, $(`#${id}`)?.value || ""])
+  );
+
+  const hasContent = Object.values(draft).some(Boolean);
+  if (!hasContent) {
+    localStorage.removeItem(key);
+    updateDraftStatus("Draft cleared. Attachments are not stored on this device.");
+    return;
+  }
+
+  localStorage.setItem(key, JSON.stringify({ savedAt: new Date().toISOString(), fields: draft }));
+  updateDraftStatus("Draft saved on this device. Attachments are not saved.");
+}
+
+function loadComplaintDraft() {
+  const key = complaintDraftKey();
+  if (!key) return;
+
+  let draft;
+  try {
+    draft = JSON.parse(localStorage.getItem(key) || "null");
+  } catch {
+    localStorage.removeItem(key);
+    return;
+  }
+
+  if (!draft?.fields) return;
+  complaintDraftFields().forEach((id) => {
+    const input = $(`#${id}`);
+    if (input && draft.fields[id]) input.value = draft.fields[id];
+  });
+  toggleBusFields();
+  updateDraftStatus(`Draft restored from ${formatDate(draft.savedAt)}. Attachments must be selected again.`);
+}
+
+function clearComplaintDraft({ resetForm = false } = {}) {
+  const key = complaintDraftKey();
+  if (key) localStorage.removeItem(key);
+  if (resetForm) $("#complaintForm")?.reset();
+  toggleBusFields();
+  updateDraftStatus("Draft cleared. Attachments are not stored on this device.");
+}
+
+function quickActionsForRole() {
+  if (!currentUser) {
+    return [
+      ["Sign in", "Open a portal login", "portal-choice", "fa-right-to-bracket"],
+      ["Create student account", "Register a new student account", "register", "fa-user-plus"],
+      ["About BGMIT", "View college information", "about", "fa-building-columns"]
+    ];
+  }
+
+  const shared = [
+    ["My profile", "View profile and change password", "profile", "fa-id-badge"],
+    ["Notifications", "View your latest updates", "notifications", "fa-bell"],
+    ["Home", "Return to the public home page", "home", "fa-house"]
+  ];
+
+  if (currentUser.role === "student") {
+    return [
+      ["Submit complaint", "Report a new campus issue", "complaint", "fa-paper-plane"],
+      ["My dashboard", "View your private complaints", "dashboard", "fa-gauge-high"],
+      ...shared
+    ];
+  }
+  if (currentUser.role === "department") {
+    return [
+      ["Department dashboard", "View department-assigned complaints", "department", "fa-gauge-high"],
+      ["Work assignments", "Review work assigned within your department", "department-work", "fa-clipboard-check"],
+      ...shared
+    ];
+  }
+  return [
+    ["Administration dashboard", "View all complaints and analytics", "admin", "fa-gauge-high"],
+    ["Export reports", "Open the official report centre", "admin-reports", "fa-file-export"],
+    ...shared
+  ];
+}
+
+function openQuickActions() {
+  $("#quickActionOverlay")?.remove();
+  const actions = quickActionsForRole();
+  document.body.insertAdjacentHTML("beforeend", `
+    <div class="quick-action-overlay" id="quickActionOverlay" role="presentation">
+      <section class="quick-action-dialog" role="dialog" aria-modal="true" aria-labelledby="quickActionTitle">
+        <div class="quick-action-heading"><div><p class="small-title">COMMAND CENTER</p><h2 id="quickActionTitle">Quick actions</h2></div><button class="icon-button" type="button" data-close-quick-actions aria-label="Close quick actions"><i class="fa-solid fa-xmark"></i></button></div>
+        <label class="sr-only" for="quickActionSearch">Search quick actions</label>
+        <div class="quick-action-search"><i class="fa-solid fa-magnifying-glass"></i><input id="quickActionSearch" type="search" autocomplete="off" placeholder="Search actions…"></div>
+        <div class="quick-action-list" id="quickActionList">
+          ${actions.map(([title, description, action, icon]) => `<button type="button" class="quick-action-item" data-quick-action="${escapeHtml(action)}"><i class="fa-solid ${escapeHtml(icon)}"></i><span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small></span><i class="fa-solid fa-arrow-right"></i></button>`).join("")}
+        </div>
+        <p class="quick-action-help"><kbd>Esc</kbd> to close</p>
+      </section>
+    </div>`);
+  $("#quickActionSearch")?.focus();
+}
+
+function runQuickAction(action) {
+  $("#quickActionOverlay")?.remove();
+  if (action === "profile") return openProfileDialog();
+  if (action === "notifications") return openNotifications().catch((error) => showToast(error.message, "error"));
+  if (action === "department-work") return openDepartmentWorkAssignments().catch((error) => showToast(error.message, "error"));
+  if (action === "admin-reports") return openOfficialPrintCentre();
+  showPage(action);
 }
 
 // Call Express backend API.
@@ -296,6 +569,7 @@ function showPage(pageName, updateHash = true) {
 
   if (targetPage) {
     targetPage.classList.add("active-page");
+    window.requestAnimationFrame(() => revealPremiumInterface(targetPage));
   }
 
   document.querySelectorAll(".main-nav a").forEach((link) => {
@@ -333,7 +607,7 @@ function showPage(pageName, updateHash = true) {
   }
 
   if (pageName === "complaint") {
-    loadCategories();
+    loadCategories().then(loadComplaintDraft);
     toggleBusFields();
   }
 }
@@ -406,20 +680,45 @@ function createExtraPages() {
       `
       <section class="page admin-page" id="adminPage">
         <div class="admin-shell">
-          <button class="back-button" data-page="home">
-            <i class="fa-solid fa-arrow-left"></i> Back to Home
-          </button>
+          <div class="admin-app-layout">
+            <aside class="admin-sidebar" id="adminSidebar" aria-label="Administrator navigation">
+              <div class="admin-sidebar-brand">
+                <span class="admin-sidebar-mark"><i class="fa-solid fa-building-columns"></i></span>
+                <span class="admin-sidebar-brand-copy"><strong>BGMIT</strong><small>Administration</small></span>
+                <button class="admin-sidebar-toggle" id="adminSidebarToggle" type="button" aria-label="Collapse sidebar" title="Collapse sidebar"><i class="fa-solid fa-bars"></i></button>
+              </div>
+              <p class="admin-nav-label">MAIN</p>
+              <nav class="admin-side-nav">
+                <button class="admin-side-link active" data-page="admin" title="Dashboard"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></button>
+                <button class="admin-side-link" data-admin-scroll="adminComplaintRows" title="Complaints"><i class="fa-solid fa-layer-group"></i><span>Complaints</span></button>
+                <button class="admin-side-link" data-admin-action="departments" title="Departments"><i class="fa-solid fa-building"></i><span>Departments</span></button>
+                <button class="admin-side-link" data-admin-scroll="adminCategoryChart" title="Analytics"><i class="fa-solid fa-chart-line"></i><span>Analytics</span></button>
+              </nav>
+              <p class="admin-nav-label">ACCOUNT</p>
+              <nav class="admin-side-nav">
+                <button class="admin-side-link" data-dashboard="notifications" title="Notifications"><i class="fa-solid fa-bell"></i><span>Notifications</span><b class="admin-nav-badge notification-count"></b></button>
+                <button class="admin-side-link" data-admin-action="settings" title="Settings"><i class="fa-solid fa-gear"></i><span>Settings</span></button>
+              </nav>
+              <div class="admin-sidebar-bottom">
+                <button class="admin-account-card" data-profile title="Open administrator profile">
+                  <span class="admin-avatar" id="adminAvatar">A</span>
+                  <span class="admin-account-copy"><strong id="adminSidebarName">Administrator</strong><small id="adminSidebarRole">Administrator</small></span>
+                  <i class="fa-solid fa-chevron-right"></i>
+                </button>
+                <button class="admin-side-link admin-logout" data-page="home" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i><span>Logout</span></button>
+              </div>
+            </aside>
 
-          <div class="portal-role-nav" aria-label="Administrator navigation">
-            <button class="portal-nav-link active" data-page="admin"><i class="fa-solid fa-gauge-high"></i> Dashboard</button>
-            <button class="portal-nav-link" data-admin-scroll="adminComplaintRows"><i class="fa-solid fa-layer-group"></i> All Complaints</button>
-            <button class="portal-nav-link" data-admin-action="departments"><i class="fa-solid fa-building-columns"></i> Departments</button>
-            <button class="portal-nav-link" data-admin-action="management"><i class="fa-solid fa-sliders"></i> Complaint Management</button>
-            <button class="portal-nav-link" data-admin-scroll="adminCategoryChart"><i class="fa-solid fa-chart-line"></i> Reports & Analytics</button>
-            <button class="portal-nav-link" data-admin-action="notifications"><i class="fa-solid fa-bell"></i> Notifications</button>
-            <button class="portal-nav-link" data-profile><i class="fa-solid fa-id-badge"></i> Profile</button>
-            <button class="portal-nav-link logout-button" data-page="home"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</button>
-          </div>
+            <section class="admin-workspace">
+              <header class="admin-topbar">
+                <div class="admin-breadcrumb"><span>Administration</span><i class="fa-solid fa-chevron-right"></i><strong>Dashboard</strong></div>
+                <div class="admin-top-actions">
+                  <button class="admin-top-icon" type="button" data-admin-focus-search aria-label="Search complaints" title="Search complaints"><i class="fa-solid fa-magnifying-glass"></i></button>
+                  <button class="admin-top-icon" type="button" data-dashboard="notifications" aria-label="Open notifications" title="Notifications"><i class="fa-solid fa-bell"></i><span class="top-notification-count notification-count"></span></button>
+                  <button class="admin-top-icon" type="button" data-admin-action="settings" aria-label="Open settings" title="Settings"><i class="fa-solid fa-gear"></i></button>
+                  <button class="admin-top-profile" type="button" data-profile aria-label="Open administrator profile" title="Profile"><span id="adminTopAvatar">A</span></button>
+                </div>
+              </header>
 
           <div class="admin-heading">
             <div>
@@ -539,6 +838,8 @@ function createExtraPages() {
               <div class="table-wrap"><table><thead><tr><th>Department</th><th>Total</th><th>Open</th><th>Resolved</th><th>Overdue</th><th>Avg. resolution</th></tr></thead><tbody id="departmentPerformanceRows"></tbody></table></div>
             </article>
           </section>
+            </section>
+          </div>
         </div>
       </section>
       `
@@ -722,12 +1023,18 @@ async function loadDepartmentDashboard() {
       ["Resolved", stats.resolved, "green-icon", "fa-circle-check"],
       ["Overdue", stats.overdue, "red-icon", "fa-triangle-exclamation"]
     ].map(([label, value, color, icon]) => `<article class="stat-card"><div class="round-icon ${color}"><i class="fa-solid ${icon}"></i></div><p>${label}</p><strong>${Number(value || 0)}</strong></article>`).join("");
+    $("#departmentStats").querySelectorAll("strong").forEach((element, index) => {
+      const metricValues = [stats.total, stats.pending, stats.inProgress, stats.resolved, stats.overdue];
+      animateMetricValue(element, metricValues[index]);
+    });
+    revealPremiumInterface($("#departmentPage"));
     await loadDepartmentComplaints();
   } catch (error) { showToast(error.message, "error"); }
 }
 
 async function loadDepartmentComplaints() {
   if (!currentUser || currentUser.role !== "department") return;
+  renderTableSkeleton("#departmentComplaintRows", 8);
   const status = $("#departmentStatusFilter")?.value || "";
   const isOverdue = $("#departmentOverdueFilter")?.value || "";
   const params = new URLSearchParams({ limit: "50" });
@@ -741,6 +1048,7 @@ async function loadDepartmentComplaints() {
   const table = $("#departmentComplaintRows");
   if (!table) return;
 
+  finishTableLoading("#departmentComplaintRows");
   table.innerHTML = rows.map((item) => `
     <tr>
       <td>${escapeHtml(item.ticketId)}</td>
@@ -748,7 +1056,7 @@ async function loadDepartmentComplaints() {
       <td>${escapeHtml(item.category)}</td>
       <td>${escapeHtml(item.priority)}</td>
       <td><span class="status ${statusClass(item.status)}">${escapeHtml(item.status)}</span></td>
-      <td>${formatDate(item.dueDate)}</td>
+      <td>${formatDate(item.dueDate)}${dueCountdownMarkup(item)}</td>
       <td>${escapeHtml(item.assignedTo?.fullName || "Not assigned")}</td>
       <td><button class="manage-button" data-department-complaint="${item._id}">Manage</button></td>
     </tr>`).join("") || `<tr><td colspan="8" class="empty-state">No complaints match this filter.</td></tr>`;
@@ -847,6 +1155,99 @@ function departmentOptions(selected = "") {
   return `<option value="">Select department</option>${departmentCodes.map((department) => `<option value="${department}" ${department === selected ? "selected" : ""}>${department}</option>`).join("")}`;
 }
 
+function openAdminSettingsPanel(settings = {}) {
+  const themePreference = localStorage.getItem(THEME_KEY) || "system";
+  const accountCreated = currentUser?.createdAt
+    ? formatDate(currentUser.createdAt)
+    : "Not available";
+  const displayName = escapeHtml(currentUser?.fullName || "Administrator");
+  const displayEmail = escapeHtml(currentUser?.email || "Not available");
+
+  openAdminOverlay("Settings", `
+    <div class="settings-shell">
+      <nav class="settings-nav" aria-label="Settings categories">
+        <button type="button" class="settings-nav-link active" data-settings-tab="appearance"><i class="fa-solid fa-palette"></i><span>Appearance</span></button>
+        <button type="button" class="settings-nav-link" data-settings-tab="account"><i class="fa-solid fa-user-gear"></i><span>Account</span></button>
+        <button type="button" class="settings-nav-link" data-settings-tab="website"><i class="fa-solid fa-window-maximize"></i><span>Website information</span></button>
+        <button type="button" class="settings-nav-link" data-settings-tab="system"><i class="fa-solid fa-sliders"></i><span>System preferences</span></button>
+        <button type="button" class="settings-nav-link" data-settings-tab="about"><i class="fa-solid fa-circle-info"></i><span>About</span></button>
+      </nav>
+
+      <div class="settings-content">
+        <section class="settings-panel active" data-settings-panel="appearance">
+          <div class="settings-panel-heading"><div><p class="small-title">APPEARANCE</p><h3>Make the workspace comfortable</h3><p>Your choice is stored on this browser and applied across the portal.</p></div></div>
+          <div class="theme-choice-grid" role="group" aria-label="Theme preference">
+            <button type="button" class="theme-choice ${themePreference === "light" ? "selected" : ""}" data-theme-choice="light" aria-pressed="${themePreference === "light"}"><span class="theme-preview theme-preview-light"></span><strong>Light</strong><small>Bright, focused workspace</small></button>
+            <button type="button" class="theme-choice ${themePreference === "dark" ? "selected" : ""}" data-theme-choice="dark" aria-pressed="${themePreference === "dark"}"><span class="theme-preview theme-preview-dark"></span><strong>Dark</strong><small>Lower-light workspace</small></button>
+            <button type="button" class="theme-choice ${themePreference === "system" ? "selected" : ""}" data-theme-choice="system" aria-pressed="${themePreference === "system"}"><span class="theme-preview theme-preview-system"></span><strong>System default</strong><small>Follow your device setting</small></button>
+          </div>
+          <div class="settings-note"><i class="fa-solid fa-wand-magic-sparkles"></i><span>Theme changes are applied immediately with a smooth transition.</span></div>
+        </section>
+
+        <section class="settings-panel" data-settings-panel="account" hidden>
+          <div class="settings-panel-heading"><div><p class="small-title">ACCOUNT SETTINGS</p><h3>Your administrator account</h3><p>Keep your personal information and password up to date.</p></div></div>
+          <div class="settings-account-card"><span class="settings-account-avatar">${escapeHtml((currentUser?.fullName || "A").trim().charAt(0).toUpperCase())}</span><div><strong>${displayName}</strong><small>${displayEmail}</small><small>Role: Administrator</small></div></div>
+          <dl class="settings-definition-list"><div><dt>Account created</dt><dd>${escapeHtml(accountCreated)}</dd></div><div><dt>Current session</dt><dd>This browser session</dd></div><div><dt>Account status</dt><dd>${currentUser?.isActive ? "Active" : "Inactive"}</dd></div></dl>
+          <button type="button" class="button button-primary" data-settings-profile><i class="fa-solid fa-user-pen"></i> Edit profile &amp; password</button>
+        </section>
+
+        <section class="settings-panel" data-settings-panel="website" hidden>
+          <div class="settings-panel-heading"><div><p class="small-title">WEBSITE INFORMATION</p><h3>Smart College Complaint Portal</h3><p>Verified project information available in the current application.</p></div></div>
+          <dl class="settings-definition-list"><div><dt>Website name</dt><dd>Smart College Complaint Portal</dd></div><div><dt>College branding</dt><dd>Basaveshwar Gurukulam Institute of Technology (BGMIT), Mudhol</dd></div><div><dt>Purpose</dt><dd>Complaint reporting, tracking and resolution for BGMIT</dd></div><div><dt>Copyright</dt><dd>© 2026 Smart College Complaint Portal · BGMIT, Mudhol</dd></div></dl>
+        </section>
+
+        <section class="settings-panel" data-settings-panel="system" hidden>
+          <div class="settings-panel-heading"><div><p class="small-title">SYSTEM PREFERENCES</p><h3>Portal controls</h3><p>These changes affect the existing secure portal workflow.</p></div></div>
+          <form id="adminSettingsForm" class="settings-form">
+            <label for="settingPortalName">Portal name</label><input id="settingPortalName" value="${escapeHtml(settings.portalName || "Smart College Complaint Portal")}">
+            <label for="settingSupportEmail">Support email</label><input id="settingSupportEmail" type="email" value="${escapeHtml(settings.supportEmail || "")}">
+            <label for="settingMonthlyComplaintLimit">Monthly complaint limit per student</label><input id="settingMonthlyComplaintLimit" type="number" min="1" max="100" value="${Number(settings.monthlyComplaintLimit || 5)}">
+            <p class="form-help">Every successfully created complaint counts, including complaints later rejected or reopened.</p>
+            <label for="settingDefaultComplaintPriority">Default backend priority</label><select id="settingDefaultComplaintPriority">${["Low", "Normal", "High", "Emergency"].map((priority) => `<option ${String(settings.defaultComplaintPriority || "Normal") === priority ? "selected" : ""}>${priority}</option>`).join("")}</select>
+            <label for="settingMaintenanceMessage">Maintenance message</label><textarea id="settingMaintenanceMessage" rows="4">${escapeHtml(settings.maintenanceMessage || "")}</textarea>
+            <button class="button button-primary" type="submit"><i class="fa-solid fa-floppy-disk"></i> Save system preferences</button>
+          </form>
+          <div class="settings-note"><i class="fa-solid fa-bell"></i><span>Complaint update notifications are sent automatically by the existing workflow. Per-user notification preferences are not stored by the current backend.</span></div>
+        </section>
+
+        <section class="settings-panel" data-settings-panel="about" hidden>
+          <div class="settings-panel-heading"><div><p class="small-title">ABOUT THIS APPLICATION</p><h3>Project release information</h3><p>Only metadata available in this project is shown below.</p></div></div>
+          <dl class="settings-definition-list"><div><dt>Application version</dt><dd>v${APP_VERSION}</dd></div><div><dt>Build number</dt><dd>Not recorded in project metadata</dd></div><div><dt>Release date</dt><dd>Not recorded in project metadata</dd></div><div><dt>Release notes</dt><dd>Not maintained as a project metadata file</dd></div><div><dt>Developed for</dt><dd>BGMIT Smart College Complaint Portal project</dd></div><div><dt>Terms &amp; privacy</dt><dd>No published links are configured in this project</dd></div></dl>
+        </section>
+      </div>
+    </div>`);
+}
+
+function switchSettingsTab(tab) {
+  document.querySelectorAll("[data-settings-tab]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.settingsTab === tab);
+  });
+  document.querySelectorAll("[data-settings-panel]").forEach((panel) => {
+    const active = panel.dataset.settingsPanel === tab;
+    panel.hidden = !active;
+    panel.classList.toggle("active", active);
+  });
+}
+
+function updateAdminIdentity() {
+  if (!currentUser || currentUser.role !== "admin") return;
+  const initial = (currentUser.fullName || "A").trim().charAt(0).toUpperCase();
+  $("#adminSidebarName") && ($("#adminSidebarName").textContent = currentUser.fullName);
+  $("#adminSidebarRole") && ($("#adminSidebarRole").textContent = "Administrator");
+  $("#adminAvatar") && ($("#adminAvatar").textContent = initial);
+  $("#adminTopAvatar") && ($("#adminTopAvatar").textContent = initial);
+}
+
+function setupAdminSidebar() {
+  const sidebar = $("#adminSidebar");
+  if (!sidebar || sidebar.dataset.initialised) return;
+  sidebar.dataset.initialised = "true";
+  const collapsed = localStorage.getItem("admin_sidebar_collapsed") === "true";
+  sidebar.classList.toggle("is-collapsed", collapsed);
+  sidebar.closest(".admin-app-layout")?.classList.toggle("sidebar-collapsed", collapsed);
+  updateAdminIdentity();
+}
+
 async function openAdminPanel(action) {
   if (!currentUser || currentUser.role !== "admin") return;
 
@@ -931,8 +1332,7 @@ async function openAdminPanel(action) {
 
   if (action === "settings") {
     const response = await api("/admin/settings");
-    const settings = response.settings || {};
-    openAdminOverlay("Portal settings", `<form id="adminSettingsForm"><label for="settingPortalName">Portal name</label><input id="settingPortalName" value="${escapeHtml(settings.portalName || "Smart College Complaint Portal")}"><label for="settingSupportEmail">Support email</label><input id="settingSupportEmail" type="email" value="${escapeHtml(settings.supportEmail || "")}"><label for="settingMonthlyComplaintLimit">Monthly complaint limit per student</label><input id="settingMonthlyComplaintLimit" type="number" min="1" max="100" value="${Number(settings.monthlyComplaintLimit || 5)}"><p class="form-help">Every successfully created complaint counts, including complaints later rejected or reopened.</p><label for="settingDefaultComplaintPriority">Default backend priority</label><select id="settingDefaultComplaintPriority">${["Low", "Normal", "High", "Emergency"].map((priority) => `<option ${String(settings.defaultComplaintPriority || "Normal") === priority ? "selected" : ""}>${priority}</option>`).join("")}</select><label for="settingMaintenanceMessage">Maintenance message</label><textarea id="settingMaintenanceMessage" rows="4">${escapeHtml(settings.maintenanceMessage || "")}</textarea><button class="button button-primary full-button" type="submit">Save settings</button></form>`);
+    openAdminSettingsPanel(response.settings || {});
     return;
   }
 
@@ -1052,6 +1452,7 @@ async function loadPublicNotices() {
 // Real Student dashboard.
 async function loadStudentDashboard() {
   if (!currentUser || currentUser.role !== "student") return;
+  renderTableSkeleton("#complaintTable", 7);
 
   try {
     const [dashboardData, complaintData, notificationData] =
@@ -1063,25 +1464,16 @@ async function loadStudentDashboard() {
 
     $("#studentName").textContent = currentUser.fullName;
 
-    $("#totalCount").textContent =
-      dashboardData.summary.total;
-
-    $("#pendingCount").textContent =
-      dashboardData.summary.pending;
-
-    $("#progressCount").textContent =
-      dashboardData.summary.inProgress;
-
-    $("#resolvedCount").textContent =
-      dashboardData.summary.resolved;
-
-    $("#rejectedCount").textContent =
-      dashboardData.summary.rejected;
+    animateMetricValue($("#totalCount"), dashboardData.summary.total);
+    animateMetricValue($("#pendingCount"), dashboardData.summary.pending);
+    animateMetricValue($("#progressCount"), dashboardData.summary.inProgress);
+    animateMetricValue($("#resolvedCount"), dashboardData.summary.resolved);
+    animateMetricValue($("#rejectedCount"), dashboardData.summary.rejected);
 
     const monthly = dashboardData.monthlySubmission || {};
-    $("#monthlySubmittedCount").textContent = monthly.submitted ?? 0;
-    $("#monthlyLimitCount").textContent = monthly.limit ?? 0;
-    $("#monthlyRemainingCount").textContent = monthly.remaining ?? 0;
+    animateMetricValue($("#monthlySubmittedCount"), monthly.submitted ?? 0);
+    animateMetricValue($("#monthlyLimitCount"), monthly.limit ?? 0);
+    animateMetricValue($("#monthlyRemainingCount"), monthly.remaining ?? 0);
     $("#monthlyLimitMessage").textContent =
       monthly.remaining > 0
         ? `${monthly.remaining} complaint${monthly.remaining === 1 ? "" : "s"} remaining this calendar month.`
@@ -1097,6 +1489,8 @@ async function loadStudentDashboard() {
         notificationData.unreadCount > 0 ? "flex" : "none";
     }
 
+    revealPremiumInterface($("#dashboardPage"));
+
   } catch (error) {
     showToast(error.message, "error");
   }
@@ -1107,6 +1501,7 @@ function renderStudentComplaints(complaints) {
   const table = $("#complaintTable");
 
   if (!table) return;
+  finishTableLoading("#complaintTable");
 
   if (!complaints.length) {
     table.innerHTML = `
@@ -1137,7 +1532,7 @@ function renderStudentComplaints(complaints) {
             </span>
           </td>
           <td>${formatDate(complaint.submittedAt || complaint.createdAt)}</td>
-          <td>${formatDate(complaint.dueDate)}</td>
+          <td>${formatDate(complaint.dueDate)}${dueCountdownMarkup(complaint)}</td>
           <td>
             <button class="manage-button" data-student-complaint="${complaint._id}">View</button>
             ${
@@ -1168,6 +1563,7 @@ function renderStudentComplaints(complaints) {
 // student's own history easier to search; they never expose other students.
 async function loadStudentComplaintHistory() {
   if (!currentUser || currentUser.role !== "student") return;
+  renderTableSkeleton("#complaintTable", 7);
   const params = new URLSearchParams({ limit: "25" });
   const search = $("#studentComplaintSearch")?.value.trim();
   const status = $("#studentComplaintStatus")?.value;
@@ -1230,6 +1626,7 @@ async function submitComplaint(form) {
   });
 
   form.reset();
+  clearComplaintDraft();
 
   showToast(
     `Complaint submitted. Save ID: ${data.complaint.ticketId}. ${data.monthlySubmission?.remaining ?? ""} remaining this month.`
@@ -1585,6 +1982,7 @@ async function openNotifications() {
 // Load Admin/Department dashboard.
 async function loadAdminDashboard() {
   if (!currentUser || currentUser.role !== "admin") return;
+  renderTableSkeleton("#adminComplaintRows", 8);
 
   try {
     const params = getAdminFilterParams();
@@ -1596,6 +1994,7 @@ async function loadAdminDashboard() {
 
     $("#adminWelcome").textContent =
       `${currentUser.fullName} — ${currentUser.role === "admin" ? "Administrator" : currentUser.department}`;
+    updateAdminIdentity();
 
     renderAdminStats(dashboardData);
     renderAdminComplaints(complaintsData.complaints);
@@ -1645,22 +2044,29 @@ function renderAdminStats(data) {
     ["Due today", summary.dueToday],
     ["Next 7 days", summary.upcoming],
     ["On-time resolved", data.onTimeResolved],
-    ["Avg. rating", `${data.averageFeedbackRating || 0}/5`],
+    ["Avg. rating", data.averageFeedbackRating, "/5"],
     ["Feedback", data.totalFeedback],
-    ["Avg. resolution", `${data.averageResolutionHours || 0}h`]
+    ["Avg. resolution", data.averageResolutionHours, "h"]
   ];
 
   $("#adminStats").innerHTML = cards
     .map(
-      ([label, value]) =>
-        `<article class="admin-stat"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value ?? 0)}</strong></article>`
+      ([label, value, suffix = ""]) =>
+        `<article class="admin-stat"><span>${escapeHtml(label)}</span><strong data-metric-value="0" data-metric-suffix="${escapeHtml(suffix)}">0${escapeHtml(suffix)}</strong></article>`
     )
     .join("");
+
+  $("#adminStats").querySelectorAll("strong").forEach((element, index) => {
+    const [, value, suffix = ""] = cards[index];
+    animateMetricValue(element, value, { suffix });
+  });
+  revealPremiumInterface($("#adminPage"));
 }
 
 // Admin complaint table.
 function renderAdminComplaints(complaints = []) {
   const table = $("#adminComplaintRows");
+  finishTableLoading("#adminComplaintRows");
 
   if (!complaints.length) {
     table.innerHTML = `
@@ -1695,7 +2101,7 @@ function renderAdminComplaints(complaints = []) {
           </span>
         </td>
         <td>${formatDate(complaint.submittedAt || complaint.createdAt)}</td>
-        <td>${formatDate(complaint.dueDate)}</td>
+        <td>${formatDate(complaint.dueDate)}${dueCountdownMarkup(complaint)}</td>
         <td>
           <button class="manage-button" data-manage-id="${complaint._id}">
             Manage
@@ -2223,6 +2629,27 @@ function statusClass(status) {
   };
 
   return map[status] || "submitted";
+}
+
+// This is derived only from the due date already returned by the authorised
+// complaint API. It never changes a complaint's status or priority.
+function dueCountdownMarkup(complaint) {
+  const dueDate = complaint?.dueDate ? new Date(complaint.dueDate) : null;
+  if (!dueDate || Number.isNaN(dueDate.getTime())) return "";
+
+  const terminal = ["Resolved", "Closed", "Rejected"].includes(complaint.status);
+  if (terminal) return '<small class="due-countdown due-finished"><i class="fa-solid fa-circle-check"></i> Closed</small>';
+
+  const difference = dueDate.getTime() - Date.now();
+  const minutes = Math.ceil(Math.abs(difference) / (60 * 1000));
+  const days = Math.floor(minutes / (60 * 24));
+  const hours = Math.floor((minutes % (60 * 24)) / 60);
+  const duration = days > 0 ? `${days}d ${hours}h` : `${Math.max(1, hours)}h`;
+
+  if (difference < 0) {
+    return `<small class="due-countdown due-overdue"><i class="fa-solid fa-triangle-exclamation"></i> Overdue by ${duration}</small>`;
+  }
+  return `<small class="due-countdown due-upcoming"><i class="fa-regular fa-clock"></i> ${duration} left</small>`;
 }
 
 // Date/time shown professionally.
@@ -3052,6 +3479,97 @@ document.addEventListener("change", (event) => {
   }
 });
 
+// Drafts are intentionally local-only. They never send unfinished complaint
+// information to the server, and files are excluded because browsers do not
+// safely persist file inputs.
+document.addEventListener("input", (event) => {
+  if (!event.target.closest("#complaintForm") || event.target.type === "file") return;
+  window.clearTimeout(window.complaintDraftTimer);
+  window.complaintDraftTimer = window.setTimeout(saveComplaintDraft, 420);
+});
+
+document.addEventListener("click", (event) => {
+  const adminSideLink = event.target.closest(".admin-side-link");
+  if (adminSideLink && !adminSideLink.classList.contains("admin-logout")) {
+    document.querySelectorAll(".admin-side-link").forEach((link) => link.classList.remove("active"));
+    adminSideLink.classList.add("active");
+  }
+  const settingsTab = event.target.closest("[data-settings-tab]");
+  if (settingsTab) {
+    switchSettingsTab(settingsTab.dataset.settingsTab);
+    return;
+  }
+  const themeChoice = event.target.closest("[data-theme-choice]");
+  if (themeChoice) {
+    applyTheme(themeChoice.dataset.themeChoice);
+    showToast("Theme preference saved.");
+    return;
+  }
+  if (event.target.closest("[data-settings-profile]")) {
+    $("#dialogOverlay")?.remove();
+    openProfileDialog();
+    return;
+  }
+  if (event.target.closest("[data-admin-focus-search]")) {
+    $("#adminSearch")?.focus();
+    return;
+  }
+  if (event.target.closest("#adminSidebarToggle")) {
+    const sidebar = $("#adminSidebar");
+    if (!sidebar) return;
+    const collapsed = sidebar.classList.toggle("is-collapsed");
+    sidebar.closest(".admin-app-layout")?.classList.toggle("sidebar-collapsed", collapsed);
+    localStorage.setItem("admin_sidebar_collapsed", String(collapsed));
+    event.target.closest("#adminSidebarToggle")?.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+    return;
+  }
+  if (event.target.closest("#themeToggle")) {
+    applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+    return;
+  }
+  if (event.target.closest("#quickActionButton")) {
+    openQuickActions();
+    return;
+  }
+  if (event.target.closest("[data-close-quick-actions]")) {
+    $("#quickActionOverlay")?.remove();
+    return;
+  }
+  const actionButton = event.target.closest("[data-quick-action]");
+  if (actionButton) {
+    runQuickAction(actionButton.dataset.quickAction);
+    return;
+  }
+  if (event.target.id === "clearComplaintDraft") {
+    clearComplaintDraft({ resetForm: true });
+  }
+});
+
+document.addEventListener("input", (event) => {
+  if (event.target.id !== "quickActionSearch") return;
+  const query = event.target.value.trim().toLowerCase();
+  document.querySelectorAll(".quick-action-item").forEach((item) => {
+    item.hidden = !item.textContent.toLowerCase().includes(query);
+  });
+});
+
+document.addEventListener("keydown", (event) => {
+  const editable = event.target.matches?.("input, textarea, select, [contenteditable='true']");
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    openQuickActions();
+    return;
+  }
+  if (event.key === "Escape") {
+    $("#quickActionOverlay")?.remove();
+    return;
+  }
+  if (!editable && event.key === "/") {
+    event.preventDefault();
+    openQuickActions();
+  }
+});
+
 // React when browser URL hash changes.
 window.addEventListener("hashchange", () => {
   const page = window.location.hash.replace("#", "");
@@ -3092,7 +3610,9 @@ async function validateSavedSession() {
 // Start website.
 async function startPortal() {
   createExtraPages();
+  setupAdminSidebar();
   addPasswordToggles();
+  initialiseTheme();
   configureLoginPortal();
 
   updateHeader();
